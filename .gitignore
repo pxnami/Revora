@@ -1,0 +1,9 @@
+bin/
+obj/
+dist/
+.native/
+.vs/
+*.user
+*.log
+*.ipsw
+*.zip
