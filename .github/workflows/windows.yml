@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: revora-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
@@ -28,7 +32,7 @@ jobs:
             mingw-w64-x86_64-autotools
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-curl-winssl
             mingw-w64-x86_64-libzip
             mingw-w64-x86_64-readline
       - name: Build pinned Apple device tools
@@ -37,7 +41,7 @@ jobs:
       - name: Package executable and device tools
         shell: pwsh
         run: |
-          ./scripts/build.ps1 -Package
+          ./scripts/build.ps1 -NativeTools dist/Revora/tools -Package
           Compress-Archive -Path dist/native-sources/* -DestinationPath dist/Revora-native-sources.zip
       - uses: actions/upload-artifact@v4
         with:

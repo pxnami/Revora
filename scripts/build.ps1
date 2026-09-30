@@ -1,4 +1,4 @@
-param([switch]$Test, [switch]$Package)
+param([switch]$Test, [switch]$Package, [string]$NativeTools)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -26,6 +26,15 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'UI smoke test compilation failed.' }
     & (Join-Path $testOutput 'Revora.UiSmoke.exe') $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Revora UI smoke checks failed.' }
+}
+if ($NativeTools) {
+    $testOutput = Join-Path $projectRoot 'bin\tests'
+    New-Item -ItemType Directory -Path $testOutput -Force | Out-Null
+    $core = @('Device.cs', 'Firmware.cs', 'ToolRunner.cs') | ForEach-Object { Join-Path $sourceRoot $_ }
+    & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ "/out:$testOutput\Revora.NativeSmoke.exe" @references @core (Join-Path $projectRoot 'tests\NativeSmoke.cs')
+    if ($LASTEXITCODE -ne 0) { throw 'Native smoke test compilation failed.' }
+    & (Join-Path $testOutput 'Revora.NativeSmoke.exe') ([System.IO.Path]::GetFullPath($NativeTools))
+    if ($LASTEXITCODE -ne 0) { throw 'Native tool smoke checks failed.' }
 }
 if ($Package) {
     $tools = Join-Path $output 'tools'

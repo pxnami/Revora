@@ -72,11 +72,18 @@ done
 for package in "${!packages[@]}"; do
     read -r name version <<< "$(pacman -Q "$package")"
     echo "$name $version" >> "$tools/package-versions.txt"
-    if [[ -d "/mingw64/share/licenses/$package" ]]; then
-        cp -R "/mingw64/share/licenses/$package" "$tools/licenses/"
+    while read -r license; do
+        if [[ -f "$license" ]]; then
+            relative="${license#/mingw64/share/licenses/}"
+            mkdir -p "$tools/licenses/$(dirname "$relative")"
+            cp "$license" "$tools/licenses/$relative"
+        fi
+    done < <(pacman -Ql "$package" | awk '$2 ~ /^\/mingw64\/share\/licenses\// { print $2 }')
+    base="$(awk '/^%BASE%$/ { getline; print; exit }' "/var/lib/pacman/local/$name-$version/desc")"
+    [[ -n "$base" ]] || { echo "Missing source package metadata for $name" >&2; exit 1; }
+    if [[ ! -f "$sources/$base-$version.src.tar.zst" ]]; then
+        curl --fail --location --silent --show-error "https://mirror.msys2.org/mingw/sources/$base-$version.src.tar.zst" -o "$sources/$base-$version.src.tar.zst"
     fi
-    base="${name/mingw-w64-x86_64-/mingw-w64-}"
-    curl --fail --location --silent --show-error "https://mirror.msys2.org/mingw/sources/$base-$version.src.tar.zst" -o "$sources/$base-$version.src.tar.zst"
 done
 sort -o "$tools/package-versions.txt" "$tools/package-versions.txt"
 cp "$root/native/revisions.txt" "$tools/upstream-revisions.txt"

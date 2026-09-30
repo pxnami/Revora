@@ -38,7 +38,7 @@ This creates `dist/Revora/Revora.exe`. For a complete distributable, install [MS
 
 ```bash
 pacman -Syu
-pacman -S --needed base-devel git mingw-w64-x86_64-gcc mingw-w64-x86_64-autotools mingw-w64-x86_64-pkgconf mingw-w64-x86_64-openssl mingw-w64-x86_64-curl mingw-w64-x86_64-libzip mingw-w64-x86_64-readline
+pacman -S --needed base-devel git mingw-w64-x86_64-gcc mingw-w64-x86_64-autotools mingw-w64-x86_64-pkgconf mingw-w64-x86_64-openssl mingw-w64-x86_64-curl-winssl mingw-w64-x86_64-libzip mingw-w64-x86_64-readline
 bash scripts/build-native.sh
 ```
 
@@ -47,7 +47,7 @@ The native script builds the revisions in `native/revisions.txt`, copies the req
 Then in PowerShell:
 
 ```powershell
-./scripts/build.ps1 -Test -Package
+./scripts/build.ps1 -Test -NativeTools dist/Revora/tools -Package
 Compress-Archive -Path dist/native-sources/* -DestinationPath dist/Revora-native-sources.zip
 ```
 
@@ -55,7 +55,7 @@ Distribute both the Windows package and native sources archive. GitHub Actions p
 
 ## Validation
 
-`scripts/build.ps1 -Test` checks device parsing, firmware compatibility, target selection, restore argument safety, mismatched device rejection, process quoting, stream handling, and tool timeouts. These tests use synthetic fixtures and do not touch connected devices.
+`scripts/build.ps1 -Test` checks device parsing, firmware compatibility, target selection, restore argument safety, mismatched device rejection, process quoting, stream handling, tool timeouts, and UI confirmation states. `-NativeTools` also checks bundled executable startup and binary IPSW manifest conversion from Windows. These tests use synthetic fixtures and do not touch connected devices. The native HTTP library uses Windows' certificate store through Schannel.
 
 Before recommending a release for real use, follow [the device validation checklist](docs/DEVICE-VALIDATION.md).
 
