@@ -8,21 +8,20 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32;
 
 namespace Revora
 {
-    public sealed class MainForm : Form
+    public sealed partial class MainForm : Form
     {
-        private static readonly Color Ink = Color.FromArgb(29, 40, 54);
-        private static readonly Color Muted = Color.FromArgb(91, 107, 126);
-        private static readonly Color Accent = Color.FromArgb(25, 104, 119);
+        private static readonly Color Ink = Color.FromArgb(22, 22, 22);
+        private static readonly Color Muted = Color.FromArgb(105, 105, 105);
+        private static readonly Color Accent = Color.Black;
         private readonly string dataPath;
         private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
         private readonly Label deviceInfo = new Label { AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 12, 0, 16) };
         private readonly Label firmwareInfo = new Label { AutoSize = true, Text = "No firmware selected", ForeColor = Muted, Margin = new Padding(0, 10, 0, 10) };
         private readonly Label status = new Label { AutoSize = true, ForeColor = Accent, Text = "Ready", Margin = new Padding(0, 8, 0, 6) };
-        private readonly TextBox log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, BackColor = Color.FromArgb(246, 248, 250), BorderStyle = BorderStyle.FixedSingle };
+        private readonly TextBox log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, BackColor = Color.FromArgb(246, 246, 246), BorderStyle = BorderStyle.FixedSingle };
         private readonly CheckBox erase = new CheckBox { AutoSize = true, Text = "Erase restore — delete all device data", Margin = new Padding(0, 12, 0, 12) };
         private readonly ProgressBar progress = new ProgressBar { Dock = DockStyle.Fill, Height = 8, Style = ProgressBarStyle.Continuous };
         private readonly Timer scanTimer = new Timer { Interval = 10000 };
@@ -42,12 +41,13 @@ namespace Revora
         {
             this.dataPath = dataPath;
             Text = "Revora";
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             Font = new Font("Segoe UI", 10F);
             ForeColor = Ink;
             BackColor = Color.White;
             AutoScaleMode = AutoScaleMode.Dpi;
-            MinimumSize = new Size(720, 720);
-            Size = new Size(920, 840);
+            MinimumSize = new Size(900, 760);
+            Size = new Size(1160, 900);
             StartPosition = FormStartPosition.CenterScreen;
             Directory.CreateDirectory(dataPath);
             Directory.CreateDirectory(Path.Combine(dataPath, "Logs"));
@@ -63,55 +63,7 @@ namespace Revora
             restore = MakeButton("Install firmware", true);
             setup = MakeButton("Setup", false);
 
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(30, 24, 30, 24) };
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            var heading = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, Margin = new Padding(0, 0, 0, 22) };
-            heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            heading.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            heading.Controls.Add(new Label { Text = "Revora", AutoSize = true, Font = new Font("Segoe UI", 25F, FontStyle.Bold), Margin = new Padding(0) }, 0, 0);
-            heading.Controls.Add(setup, 1, 0);
-            heading.Controls.Add(new Label { Text = "Recovery tools for iPhone and iPad", AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 4, 0, 0) }, 0, 1);
-            root.Controls.Add(heading, 0, 0);
-
-            var body = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 13, Margin = new Padding(0) };
-            for (int row = 0; row < 12; row++) body.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            body.RowStyles.Add(new RowStyle(SizeType.Absolute, 140));
-            body.Controls.Add(Section("01   Connected device"), 0, 0);
-            var deviceRow = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Margin = new Padding(0, 10, 0, 0) };
-            deviceRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            deviceRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            deviceRow.Controls.Add(devices, 0, 0);
-            deviceRow.Controls.Add(refresh, 1, 0);
-            body.Controls.Add(deviceRow, 0, 1);
-            body.Controls.Add(deviceInfo, 0, 2);
-            body.Controls.Add(ButtonRow(enter, exit), 0, 3);
-            body.Controls.Add(Section("02   Firmware install"), 0, 4);
-            body.Controls.Add(new Label { Text = "Choose an Apple-signed IPSW for your device. Signing is checked by Apple during the install.", AutoSize = true, MaximumSize = new Size(780, 0), ForeColor = Muted, Margin = new Padding(0, 8, 0, 14) }, 0, 5);
-            body.Controls.Add(chooseFirmware, 0, 6);
-            body.Controls.Add(firmwareInfo, 0, 7);
-            body.Controls.Add(erase, 0, 8);
-            body.Controls.Add(new Label { Text = "Update attempts to keep your data. Back up first; data preservation is not guaranteed.\nKeep the USB cable connected throughout the install.", AutoSize = true, MaximumSize = new Size(780, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 12) }, 0, 9);
-            body.Controls.Add(restore, 0, 10);
-            body.Controls.Add(Section("Activity"), 0, 11);
-            log.MinimumSize = new Size(100, 120);
-            log.Font = new Font("Consolas", 9F);
-            log.Margin = new Padding(0, 10, 0, 0);
-            body.Controls.Add(log, 0, 12);
-            var scrollArea = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Margin = new Padding(0) };
-            scrollArea.Controls.Add(body);
-            body.SizeChanged += (s, e) => {
-                int width = Math.Max(200, body.ClientSize.Width - 24);
-                foreach (var label in body.Controls.OfType<Label>()) {
-                    if (label.MaximumSize.Width != width) label.MaximumSize = new Size(width, 0);
-                }
-            };
-            root.Controls.Add(scrollArea, 0, 1);
-            root.Controls.Add(status, 0, 2);
-            root.Controls.Add(progress, 0, 3);
-            Controls.Add(root);
+            Controls.Add(CreateHome());
 
             refresh.Click += async (s, e) => await ScanAsync(false);
             enter.Click += async (s, e) => await RecoveryAsync(true);
@@ -234,6 +186,7 @@ namespace Revora
             catch (Exception e) {
                 if (!(e is InvalidOperationException || e is IOException || e is TimeoutException || e is Win32Exception || e is System.Xml.XmlException)) throw;
                 status.Text = "Operation failed — see Activity";
+                log.Visible = true;
                 Log(e.Message);
                 if (showError) MessageBox.Show(this, e.Message.Length > 1800 ? e.Message.Substring(0, 1800) + "\nSee Activity for more." : e.Message, "Revora", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -248,6 +201,8 @@ namespace Revora
             refresh.Enabled = ready;
             setup.Enabled = !busy;
             chooseFirmware.Enabled = !busy;
+            firmwareStart.Enabled = !busy;
+            details.Enabled = !busy && device != null;
             erase.Enabled = !busy;
             enter.Enabled = ready && device != null && device.Mode == DeviceMode.Normal;
             exit.Enabled = ready && device != null && device.Mode == DeviceMode.Recovery && device.Ecid != 0;
@@ -307,22 +262,12 @@ namespace Revora
             return File.Exists(settings) ? File.ReadAllText(settings).Trim() : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools");
         }
 
-        private static Label Section(string title)
-        {
-            return new Label { Text = title, AutoSize = true, Font = new Font("Segoe UI", 11F, FontStyle.Bold), Margin = new Padding(0, 20, 0, 0) };
-        }
         internal static Button MakeButton(string title, bool primary)
         {
             var button = new Button { Text = title, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 7, 14, 7), FlatStyle = FlatStyle.Flat, BackColor = primary ? Accent : Color.White, ForeColor = primary ? Color.White : Ink, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 10, 0), UseVisualStyleBackColor = false };
-            button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(201, 211, 220);
-            if (primary) button.EnabledChanged += (s, e) => button.BackColor = button.Enabled ? Accent : Color.FromArgb(233, 238, 241);
+            button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(205, 205, 205);
+            if (primary) button.EnabledChanged += (s, e) => button.BackColor = button.Enabled ? Accent : Color.FromArgb(235, 235, 235);
             return button;
-        }
-        private static FlowLayoutPanel ButtonRow(params Button[] buttons)
-        {
-            var row = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0) };
-            row.Controls.AddRange(buttons);
-            return row;
         }
     }
 }

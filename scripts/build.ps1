@@ -6,9 +6,10 @@ if (!(Test-Path -LiteralPath $compiler)) { throw 'The Windows .NET Framework C# 
 $output = Join-Path $projectRoot 'dist\Revora'
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $sourceRoot = Join-Path $projectRoot 'src\Revora'
+$appIcon = Join-Path $projectRoot 'assets\revora.ico'
 $sources = @(Get-ChildItem -LiteralPath $sourceRoot -Filter '*.cs' | ForEach-Object FullName)
 $references = @('/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', '/r:System.Xml.dll', '/r:System.Xml.Linq.dll', '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll')
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /warnaserror+ "/out:$output\Revora.exe" "/win32manifest:$sourceRoot\app.manifest" @references @sources
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /warnaserror+ "/out:$output\Revora.exe" "/win32manifest:$sourceRoot\app.manifest" "/win32icon:$appIcon" @references @sources
 if ($LASTEXITCODE -ne 0) { throw 'Revora compilation failed.' }
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'Revora.exe.config') -Destination $output
 foreach ($document in @('README.md', 'LICENSE', 'THIRD-PARTY.md')) {
@@ -22,7 +23,7 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed.' }
     & (Join-Path $testOutput 'Revora.Tests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Revora tests failed.' }
-    & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ /main:UiSmoke "/out:$testOutput\Revora.UiSmoke.exe" @references @sources (Join-Path $projectRoot 'tests\UiSmoke.cs')
+    & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ /main:UiSmoke "/out:$testOutput\Revora.UiSmoke.exe" "/win32icon:$appIcon" @references @sources (Join-Path $projectRoot 'tests\UiSmoke.cs')
     if ($LASTEXITCODE -ne 0) { throw 'UI smoke test compilation failed.' }
     & (Join-Path $testOutput 'Revora.UiSmoke.exe') $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Revora UI smoke checks failed.' }

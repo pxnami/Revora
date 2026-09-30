@@ -16,6 +16,10 @@ namespace Revora
         public string Board { get; set; }
         public string Version { get; set; }
         public DeviceMode Mode { get; set; }
+        public string SerialNumber { get; set; }
+        public string BuildVersion { get; set; }
+        public string ActivationState { get; set; }
+        public string WifiAddress { get; set; }
         public string Identity { get { return Ecid != 0 ? Ecid.ToString(CultureInfo.InvariantCulture) : Udid; } }
         public string EcidArgument { get { return "0x" + Ecid.ToString("x", CultureInfo.InvariantCulture); } }
         public override string ToString() { return Name + " · " + Product + " · " + Mode; }
@@ -50,7 +54,11 @@ namespace Revora
                 Udid = udid, Ecid = ecid, Product = product,
                 Name = Get(values, normal ? "DeviceName" : "NAME", product),
                 Board = Get(values, normal ? "HardwareModel" : "MODEL").ToLowerInvariant(),
-                Version = Get(values, "ProductVersion", "Unavailable in recovery mode"),
+                Version = Get(values, "ProductVersion", normal ? "Not reported" : "Unavailable in recovery mode"),
+                SerialNumber = Get(values, normal ? "SerialNumber" : "SRNM"),
+                BuildVersion = Get(values, "BuildVersion"),
+                ActivationState = Get(values, "ActivationState"),
+                WifiAddress = Get(values, "WiFiAddress"),
                 Mode = normal ? DeviceMode.Normal : mode == "Recovery" ? DeviceMode.Recovery : DeviceMode.Dfu
             };
         }

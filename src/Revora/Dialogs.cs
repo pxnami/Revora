@@ -10,6 +10,7 @@ namespace Revora
         public RestoreConfirmation(Device device, Firmware firmware, bool erase)
         {
             Text = erase ? "Confirm erase restore" : "Confirm firmware update";
+            BackColor = Color.White;
             Font = new Font("Segoe UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(580, 430);
@@ -60,6 +61,7 @@ namespace Revora
         public SetupForm(string toolsPath, string dataPath)
         {
             Text = "Revora setup";
+            BackColor = Color.White;
             Font = new Font("Segoe UI", 10F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(620, 400);

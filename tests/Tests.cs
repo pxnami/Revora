@@ -29,6 +29,9 @@ internal static class Tests
         var recovery = Device.FromProperties(Recovery, null);
         Check(normal.Ecid == recovery.Ecid && normal.Board == recovery.Board, "decimal / hexadecimal ECID and hardware normalization");
         Check(normal.Mode == DeviceMode.Normal && recovery.Mode == DeviceMode.Recovery, "normal / recovery mode parsing");
+        var information = Device.FromProperties(Normal + "SerialNumber: SAMPLE123\nBuildVersion: 22A3354\nActivationState: Activated\nWiFiAddress: 00:11:22:33:44:55\n", "test-udid");
+        Check(information.SerialNumber == "SAMPLE123" && information.BuildVersion == "22A3354"
+            && information.ActivationState == "Activated" && information.WifiAddress == "00:11:22:33:44:55", "reported device information fields");
         Check(Device.FromProperties(Recovery.Replace("MODE: Recovery", "MODE: DFU"), null).Mode == DeviceMode.Dfu, "DFU recognition");
         Reject(() => Device.FromProperties(Recovery.Replace("iPhone15,2", "AppleTV6,2"), null), "unsupported product");
         Reject(() => Device.FromProperties(Recovery.Replace("MODE: Recovery", "MODE: Unknown"), null), "unknown recovery mode");

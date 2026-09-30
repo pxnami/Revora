@@ -22,6 +22,20 @@ internal static class UiSmoke
                 if (actions.Length != 3 || actions.Any(b => b.Enabled)) throw new Exception("Device actions must be disabled without a device.");
                 form.Size = form.MinimumSize;
                 Render(form, Path.Combine(root, "revora-small-window.png"));
+                var scroll = FindControls(form).OfType<Panel>().Single(p => p.AutoScroll);
+                if (scroll.HorizontalScroll.Visible) throw new Exception("The home screen must fit the minimum window width.");
+                var activity = FindButtons(form).Single(b => b.Text == "Show activity");
+                form.ActiveControl = activity;
+                scroll.AutoScrollPosition = new Point(0, scroll.VerticalScroll.Maximum);
+                Render(form, Path.Combine(root, "revora-small-window-tools.png"));
+                if (scroll.Controls[0].Bottom > scroll.ClientSize.Height) throw new Exception("Scrolling must expose the final home-screen actions: " + scroll.Controls[0].Bounds + " viewport " + scroll.ClientSize + " position " + scroll.AutoScrollPosition);
+                activity.PerformClick();
+                if (activity.Text != "Hide activity") throw new Exception("Activity toggle did not expand the log.");
+                activity.PerformClick();
+                var devicePicker = FindControls(form).OfType<ComboBox>().Single();
+                devicePicker.Items.Add(Device.FromProperties("DeviceName: UI fixture\nProductType: iPhone15,2\nHardwareModel: D73AP\nUniqueChipID: 123456\n", "ui-fixture"));
+                devicePicker.SelectedIndex = 0;
+                if (!FindButtons(form).Single(b => b.Text == "View details").Enabled) throw new Exception("Device information must be available for a selected device.");
             }
             var device = Device.FromProperties("ProductType: iPhone15,2\nHardwareModel: D73AP\nUniqueChipID: 123456\n", "test");
             var firmware = Firmware.Parse("<plist><dict><key>ProductVersion</key><string>18.0</string><key>ProductBuildVersion</key><string>22A3354</string><key>SupportedProductTypes</key><array><string>iPhone15,2</string></array><key>BuildIdentities</key><array><dict/></array></dict></plist>");
@@ -38,6 +52,15 @@ internal static class UiSmoke
                 if (!action.Enabled) throw new Exception("Erase should enable after acknowledgement and exact text.");
             }
             using (var setup = new SetupForm("C:\\Revora\\tools", data)) Render(setup, Path.Combine(root, "revora-setup.png"));
+            using (var details = new DeviceDetails(device)) {
+                Render(details, Path.Combine(root, "revora-device-information.png"));
+                var rows = FindControls(details).OfType<DataGridView>().Single();
+                if (rows.Rows.Count != 10 || (string)rows.Rows[5].Cells[1].Value != "Not reported") throw new Exception("Device details must show unavailable values without inventing data.");
+            }
+            using (var guide = new ManagementGuide()) {
+                Render(guide, Path.Combine(root, "revora-profile-removal.png"));
+                if (FindControls(guide).OfType<TextBox>().Any()) throw new Exception("The removal guide must not collect passwords.");
+            }
             Console.WriteLine("UI smoke checks passed: startup guards, erase confirmation, desktop and small-window rendering.");
             return 0;
         }

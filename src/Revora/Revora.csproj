@@ -15,6 +15,7 @@
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\revora.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" /><Reference Include="System.Core" /><Reference Include="System.Drawing" />
@@ -24,6 +25,7 @@
   <ItemGroup>
     <Compile Include="Device.cs" /><Compile Include="DeviceService.cs" /><Compile Include="Dialogs.cs" />
     <Compile Include="Firmware.cs" /><Compile Include="MainForm.cs" /><Compile Include="Program.cs" /><Compile Include="ToolRunner.cs" />
+    <Compile Include="MainForm.Layout.cs" /><Compile Include="BrandArtwork.cs" /><Compile Include="DeviceDetails.cs" />
     <None Include="app.manifest" /><None Include="Revora.exe.config"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

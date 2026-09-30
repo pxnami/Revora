@@ -7,6 +7,9 @@ Windows desktop utility for iPhone and iPad recovery mode and IPSW firmware inst
 ## Features
 
 - USB device detection, device information, and automatic refresh.
+- Black-and-white home screen with an original circle-and-wave logo.
+- Device information with reported serial number, firmware build, activation state, Wi-Fi address, UDID, and ECID. Fields unavailable over USB are marked as not reported.
+- An on-device profile removal guide for profiles that allow password-authorized removal. Revora does not remove MDM over USB or collect removal passwords; organization-controlled enrollment requires the managing organization.
 - Enter recovery mode and request a return to normal mode.
 - Recognize DFU devices; exit DFU with a manual force restart.
 - Select a local IPSW, inspect its manifest, and check product, hardware, and install variant compatibility.
