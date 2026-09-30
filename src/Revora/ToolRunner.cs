@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -69,7 +70,11 @@ namespace Revora
                 };
                 process.OutputDataReceived += (sender, e) => { if (e.Data == null) stdoutDone.TrySetResult(true); else accept(e.Data); };
                 process.ErrorDataReceived += (sender, e) => { if (e.Data == null) stderrDone.TrySetResult(true); else accept(e.Data); };
-                process.Start();
+                try { process.Start(); }
+                catch (Win32Exception e) {
+                    throw new Win32Exception(e.NativeErrorCode,
+                        "Windows could not start " + executable + " (error " + e.NativeErrorCode + ").\n" + e.Message);
+                }
                 process.StandardInput.Close();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();

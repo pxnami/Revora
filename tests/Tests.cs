@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -91,6 +92,15 @@ internal static class Tests
             Check(output.ExitCode == 0 && arguments.All(arg => output.Output.Contains(arg + Environment.NewLine)) && output.Output.Contains("stderr"), "actual process argument quoting and stream draining");
             await RejectAsync(() => runner.RunAsync("ideviceinfo", new[] { "timeout" }, 1, null), "read-only process timeout terminates stalled tool");
             await RejectAsync(() => runner.RunAsync("cmd", new[] { "/c", "echo unsafe" }, 5, null), "only known native tools allowed");
+            string invalidTool = Path.Combine(tools, "irecovery.exe");
+            File.WriteAllText(invalidTool, "Invalid executable used to test launch errors.");
+            bool launchError = false;
+            try { await runner.RunAsync("irecovery", new[] { "--help" }, 5, null); }
+            catch (Win32Exception e) {
+                launchError = e.NativeErrorCode != 0 && e.Message.Contains(invalidTool)
+                    && e.Message.Contains("error " + e.NativeErrorCode);
+            }
+            Check(launchError, "failed tool launch identifies executable and preserves Windows error code");
         }
         finally { Directory.Delete(temp, true); }
     }

@@ -26,6 +26,12 @@ For firmware installs, choose an Apple IPSW that matches the device. Revora chec
 
 Logs and extracted firmware cache are stored in `%LOCALAPPDATA%\Revora`. Logs may contain device identifiers; review them before sharing. Open the folder from Setup. You can delete cached files after an operation has finished to reclaim disk space.
 
+### Windows application control
+
+The current release and its native tools are unsigned. Windows application control can block a tool even when `Revora.exe` opens. If the log reports that a policy blocked a file, check Windows' **CodeIntegrity / Operational** event log for the blocked filename. Revora also includes the executable path and Windows error code in launch failures in builds after 0.1.0.
+
+A compatible release needs signatures trusted by the active policy on the app, native executables, and DLLs. Signing only `Revora.exe` does not cover the tools. For Smart App Control, see [Microsoft's signing requirements](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control). A managed application-control policy may also require an administrator to authorize the publisher.
+
 ## Build
 
 The desktop app builds with the C# compiler included in Windows .NET Framework. No NuGet packages or SDK install are required.
