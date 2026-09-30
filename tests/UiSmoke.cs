@@ -218,6 +218,14 @@ internal static class UiSmoke
         Application.DoEvents(); form.CreateControl(); form.PerformLayout();
         if (!form.Controls.Cast<Control>().Any(c => c.Visible)) throw new Exception("UI controls were not rendered.");
         using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size)); bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png); }
+        foreach (var button in FindControls(form).OfType<RevoraButton>().Where(b => b.Visible)) {
+            using (var graphics = button.CreateGraphics()) {
+                int width = TextRenderer.MeasureText(graphics, button.Text, button.Font, Size.Empty, TextFormatFlags.NoPadding).Width;
+                int available = button.Width - Theme.Px(button, button.Kind == ButtonKind.Navigation ? 12 : 16) - Theme.Px(button, 12)
+                    - (button.IconName == null ? 0 : Theme.Px(button, 28));
+                if (width > available) throw new Exception("Button label clipped: " + button.Text + " (" + width + " > " + available + ", DPI " + button.DeviceDpi + ", bounds " + button.Bounds + ", parent " + button.Parent.Bounds + ").");
+            }
+        }
     }
     private static IEnumerable<Control> FindControls(Control root)
     {

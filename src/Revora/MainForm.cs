@@ -30,6 +30,7 @@ namespace Revora
         public MainForm() : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Revora"), null, true) { }
         internal MainForm(string dataPath, Func<Task<Discovery>> discovery, bool startMonitoring)
         {
+            SuspendLayout();
             this.dataPath = dataPath;
             this.startMonitoring = startMonitoring;
             Text = "Revora";
@@ -37,6 +38,7 @@ namespace Revora
             Font = Theme.Font(10F);
             ForeColor = Theme.Ink;
             BackColor = Theme.Background;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             MinimumSize = new Size(900, 680);
             Size = new Size(1080, 780);
@@ -61,6 +63,7 @@ namespace Revora
                 using (var dialog = new NoticeDialog("Operation in progress", "Keep Revora open and your device connected until the current operation finishes.", null)) dialog.ShowDialog(this);
             };
             ShowPage("Home");
+            ResumeLayout(true);
         }
 
         private Task<Discovery> DiscoverAsync()

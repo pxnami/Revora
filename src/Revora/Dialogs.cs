@@ -11,11 +11,13 @@ namespace Revora
         protected readonly FlowLayoutPanel Buttons;
         public RevoraDialog(string title, int width = 560, int height = 360)
         {
+            SuspendLayout();
             Text = title + " · Revora";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             Font = Theme.Font(10F);
             ForeColor = Theme.Ink;
             BackColor = Theme.Background;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(width, height);
             MinimumSize = new Size(width, height);
@@ -40,6 +42,7 @@ namespace Revora
             };
             AddText(title, true);
         }
+        protected override void OnLoad(EventArgs e) { ResumeLayout(true); base.OnLoad(e); }
         protected void AddText(string text, bool heading = false)
         {
             BodyPanel.Controls.Add(new Label { Text = text, AutoSize = true, MaximumSize = new Size(ClientSize.Width - 72, 0),
@@ -89,7 +92,7 @@ namespace Revora
         {
             foreach (var device in devices) {
                 var selected = device;
-                var button = new RevoraButton(device.Name + " · " + device.ModeLabel) { Width = 460, Height = 44, Margin = new Padding(0, 0, 0, 12) };
+                var button = new RevoraButton(device.Name + " · " + device.ModeLabel) { Dock = DockStyle.Top, Height = 44, Margin = new Padding(0, 0, 0, 12) };
                 button.Click += (s, e) => { SelectedIdentity = selected.Identity; DialogResult = DialogResult.OK; Close(); };
                 BodyPanel.Controls.Add(button);
             }

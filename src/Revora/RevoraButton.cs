@@ -33,7 +33,7 @@ namespace Revora
             UseVisualStyleBackColor = false;
             Cursor = Cursors.Hand;
             Height = 40;
-            Width = Math.Max(100, TextRenderer.MeasureText(text, Font).Width + (iconName == null ? 32 : 58));
+            Width = Math.Max(100, (int)Math.Ceiling(TextRenderer.MeasureText(text, Font).Width * 96F / DeviceDpi) + (iconName == null ? 32 : 58));
             Margin = new Padding(0, 0, 8, 0);
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             animation.Tick += (s, e) => {
@@ -79,7 +79,7 @@ namespace Revora
                 left += iconSize + Theme.Px(this, 10);
             }
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(left, 0, Width - left - Theme.Px(this, 12), Height), foreground,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | (Kind == ButtonKind.Navigation || IconName != null ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
+                TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | (Kind == ButtonKind.Navigation || IconName != null ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
         }
 
         protected override void Dispose(bool disposing) { if (disposing) animation.Dispose(); base.Dispose(disposing); }
