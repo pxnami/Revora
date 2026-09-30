@@ -136,6 +136,16 @@ internal static class UiSmoke
                         foreach (var font in fonts) font.Key.Font = font.Value;
                         scaled.MinimumSize = new Size((int)(900 * factor), (int)(680 * factor));
                         scaled.Size = scaled.MinimumSize;
+                        var navigation = FindControls(scaled).OfType<RevoraButton>().Where(b => b.Kind == ButtonKind.Navigation).ToArray();
+                        var sidebar = (Panel)navigation[0].Parent.Parent;
+                        foreach (var item in navigation) {
+                            sidebar.ScrollControlIntoView(item);
+                            Application.DoEvents();
+                            var location = sidebar.PointToClient(item.PointToScreen(Point.Empty));
+                            if (location.Y < 0 || location.Y + item.Height > sidebar.ClientSize.Height)
+                                throw new Exception("Navigation item is unreachable at scale " + scale + ": " + item.Text);
+                        }
+                        sidebar.AutoScrollPosition = Point.Empty;
                         foreach (string page in new[] { "Home", "Recovery", "Firmware", "Activity", "Settings" }) {
                             scaled.Navigate(page);
                             if (page == "Home") {

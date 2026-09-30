@@ -18,7 +18,7 @@ namespace Revora
             shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
             shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            var sidebar = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Theme.Sidebar, Padding = new Padding(16, 24, 16, 20), ColumnCount = 1, RowCount = 8, Margin = new Padding(0) };
+            var sidebar = new TableLayoutPanel { Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, BackColor = Theme.Sidebar, Padding = new Padding(16, 24, 16, 20), ColumnCount = 1, RowCount = 8, Margin = new Padding(0) };
             sidebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             for (int i = 0; i < 4; i++) sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -39,7 +39,21 @@ namespace Revora
                 sidebar.Controls.Add(button, 0, i == 4 ? 6 : i + 1);
             }
             sidebar.Controls.Add(new Label { Text = Application.ProductVersion, AutoSize = true, ForeColor = Theme.Muted, Font = Theme.Font(9F), Margin = new Padding(12, 8, 0, 0) }, 0, 7);
-            shell.Controls.Add(sidebar, 0, 0);
+            var sidebarViewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Sidebar, Margin = new Padding(0) };
+            sidebarViewport.Controls.Add(sidebar);
+            bool fittingSidebar = false;
+            Action fitSidebar = () => {
+                if (fittingSidebar) return;
+                fittingSidebar = true;
+                try {
+                    int minimum = (int)Math.Ceiling(sidebar.RowStyles.Cast<RowStyle>().Where(row => row.SizeType == SizeType.Absolute).Sum(row => row.Height)) + sidebar.Padding.Vertical;
+                    int width = sidebarViewport.ClientSize.Width - (minimum > sidebarViewport.ClientSize.Height ? SystemInformation.VerticalScrollBarWidth : 0);
+                    sidebar.Size = new Size(Math.Max(0, width), Math.Max(minimum, sidebarViewport.ClientSize.Height));
+                } finally { fittingSidebar = false; }
+            };
+            sidebarViewport.SizeChanged += (s, e) => fitSidebar();
+            sidebar.Layout += (s, e) => fitSidebar();
+            shell.Controls.Add(sidebarViewport, 0, 0);
             var content = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0) };
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
