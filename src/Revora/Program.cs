@@ -1,26 +1,23 @@
 using System;
 using System.Reflection;
-using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Revora")]
 [assembly: AssemblyDescription("iPhone and iPad recovery and firmware restore")]
 [assembly: AssemblyCompany("Revora")]
 [assembly: AssemblyProduct("Revora")]
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
+[assembly: AssemblyVersion("0.3.0.0")]
+[assembly: AssemblyFileVersion("0.3.0.0")]
+[assembly: TargetFramework(".NETFramework,Version=v4.8", FrameworkDisplayName = ".NET Framework 4.8")]
 
 namespace Revora
 {
     internal static class Program
     {
-        [DllImport("user32.dll")]
-        private static extern bool SetProcessDPIAware();
-
         [STAThread]
         private static void Main()
         {
-            if (Environment.OSVersion.Version.Major >= 6) SetProcessDPIAware();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());

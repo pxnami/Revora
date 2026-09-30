@@ -8,6 +8,7 @@
     <RootNamespace>Revora</RootNamespace>
     <AssemblyName>Revora</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <PlatformTarget>x64</PlatformTarget>
     <OutputPath>..\..\bin\$(Configuration)\</OutputPath>
     <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
@@ -26,7 +27,25 @@
     <Compile Include="Device.cs" /><Compile Include="DeviceService.cs" /><Compile Include="Dialogs.cs" />
     <Compile Include="Firmware.cs" /><Compile Include="MainForm.cs" /><Compile Include="Program.cs" /><Compile Include="ToolRunner.cs" />
     <Compile Include="MainForm.Layout.cs" /><Compile Include="BrandArtwork.cs" /><Compile Include="DeviceDetails.cs" />
+    <Compile Include="MainForm.Home.cs" /><Compile Include="MainForm.Recovery.cs" /><Compile Include="MainForm.Firmware.cs" />
+    <Compile Include="MainForm.Activity.cs" /><Compile Include="MainForm.Settings.cs" />
+    <Compile Include="DeviceMonitor.cs" /><Compile Include="FirmwareFlow.cs" /><Compile Include="OperationStatus.cs" />
+    <Compile Include="Theme.cs" /><Compile Include="RevoraButton.cs" /><Compile Include="IconSet.cs" />
+    <Compile Include="StatusIndicator.cs" /><Compile Include="DeviceVisual.cs" />
+    <Compile Include="ProgressTrack.cs" />
     <None Include="app.manifest" /><None Include="Revora.exe.config"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\bin\icons\home.png"><LogicalName>Revora.Icons.home.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\..\bin\icons\restart.png"><LogicalName>Revora.Icons.restart.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\..\bin\icons\download.png"><LogicalName>Revora.Icons.download.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\..\bin\icons\clock.png"><LogicalName>Revora.Icons.clock.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\..\bin\icons\settings.png"><LogicalName>Revora.Icons.settings.png</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\..\bin\icons\copy.png"><LogicalName>Revora.Icons.copy.png</LogicalName></EmbeddedResource>
+    <None Include="..\..\bin\icons\Icons8-license.html"><Link>Icons8-license.html</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="BeforeBuild">
+    <Exec Command="powershell.exe -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\fetch-icons.ps1&quot;" />
+  </Target>
 </Project>

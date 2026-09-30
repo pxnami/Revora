@@ -7,7 +7,7 @@ Windows desktop utility for iPhone and iPad recovery mode and IPSW firmware inst
 ## Features
 
 - USB device detection, device information, and automatic refresh.
-- Black-and-white home screen with an original circle-and-wave logo.
+- Device-centered light interface with Home, Recovery, Firmware, Activity and Settings pages.
 - Device information with reported serial number, firmware build, activation state, Wi-Fi address, UDID, and ECID. Fields unavailable over USB are marked as not reported.
 - Enter recovery mode and request a return to normal mode.
 - Recognize DFU devices; exit DFU with a manual force restart.
@@ -26,7 +26,9 @@ Extract the complete `Revora-windows-x64.zip` and run `Revora.exe`. Keep the `to
 
 For firmware installs, choose an Apple IPSW that matches the device. Revora checks local compatibility; the restore engine checks signing with Apple during the install. An update requires an Update install variant in the IPSW. Erase restore deletes all data and does not remove the device's Apple Account association.
 
-Logs and extracted firmware cache are stored in `%LOCALAPPDATA%\Revora`. Logs may contain device identifiers; review them before sharing. Open the folder from Setup. You can delete cached files after an operation has finished to reclaim disk space.
+Logs and extracted firmware cache are stored in `%LOCALAPPDATA%\Revora`. Logs may contain device identifiers; review them before sharing. Open the folders from Settings. You can delete cached files after an operation has finished to reclaim disk space.
+
+Device monitoring uses one ten-second polling timer. Scans are serialized, unchanged results do not rerender the connected state, and normal-mode information is retained across matching ECID mode changes with a cached-data label. Recovery and firmware operations pause monitoring while they own the USB tools.
 
 ### Windows application control
 
@@ -36,13 +38,13 @@ A compatible release needs signatures trusted by the active policy on the app, n
 
 ## Build
 
-The desktop app builds with the C# compiler included in Windows .NET Framework. No NuGet packages or SDK install are required.
+The desktop app builds with the C# compiler included in Windows .NET Framework. No NuGet packages or SDK install are required. The first build downloads six checksum-pinned Icons8 SF Regular PNG icons and their license into the ignored `bin/icons` cache. Icons are embedded in the executable; the running app does not fetch them.
 
 ```powershell
 ./scripts/build.ps1 -Test
 ```
 
-This creates `dist/Revora/Revora.exe`. For a complete distributable, install [MSYS2](https://www.msys2.org/), open its **MINGW64** shell, and install build dependencies:
+This creates `dist/Revora/Revora.exe`. Use `-OutputDirectory dist/Revora-preview` when another build is running. For a complete distributable, install [MSYS2](https://www.msys2.org/), open its **MINGW64** shell, and install build dependencies:
 
 ```bash
 pacman -Syu
@@ -63,10 +65,12 @@ Distribute both the Windows package and native sources archive. GitHub Actions p
 
 ## Validation
 
-`scripts/build.ps1 -Test` checks device parsing, firmware compatibility, target selection, restore argument safety, mismatched device rejection, process quoting, stream handling, tool timeouts, and UI confirmation states. `-NativeTools` also checks bundled executable startup and binary IPSW manifest conversion from Windows. These tests use synthetic fixtures and do not touch connected devices. The native HTTP library uses Windows' certificate store through Schannel.
+`scripts/build.ps1 -Test` checks device parsing, firmware compatibility, target selection, restore argument safety, mismatched device rejection, process quoting, stream handling, tool timeouts, serialized scans, state transitions and destructive confirmation. UI checks launch real WinForms windows and render every page, firmware step and modal, including minimum-size and simulated 100–200% layouts. These tests use synthetic fixtures and do not touch connected devices.
+
+`-NativeTools` checks bundled executable startup and binary IPSW manifest conversion. For a separate read-only live USB/UI check after building, run `./bin/tests/Revora.UiSmoke.exe ./bin/tests ./dist/Revora/tools`. It scans connected devices and captures local screenshots; it does not change their mode or install firmware. Real Windows display scaling and physical recovery/restore remain manual checks. The native HTTP library uses Windows' certificate store through Schannel.
 
 Before recommending a release for real use, follow [the device validation checklist](docs/DEVICE-VALIDATION.md).
 
 ## License
 
-Revora's C# source is MIT licensed. Bundled native tools and dependencies retain their own licenses; see [THIRD-PARTY.md](THIRD-PARTY.md).
+Revora's C# source is MIT licensed. Icons are by [Icons8](https://icons8.com/icons/family-sf-symbols). Icons, bundled native tools and dependencies retain their own licenses; see [THIRD-PARTY.md](THIRD-PARTY.md).

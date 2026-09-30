@@ -21,24 +21,35 @@ namespace Revora
         public async Task<Discovery> DiscoverAsync()
         {
             var discovery = new Discovery();
-            var normal = await runner.RunAsync("idevice_id", new[] { "-l" }, 20, null);
-            if (normal.ExitCode == 0) {
+            var normal = await DetectAsync("idevice_id", new[] { "-l" }, discovery);
+            if (normal != null && normal.ExitCode == 0) {
                 foreach (string udid in normal.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim())) {
-                    var result = await runner.RunAsync("ideviceinfo", new[] { "-u", udid }, 20, null);
+                    var result = await DetectAsync("ideviceinfo", new[] { "-u", udid }, discovery);
+                    if (result == null) continue;
                     if (result.ExitCode != 0) { discovery.Issues.Add("Cannot read device " + udid + ". Unlock it and accept Trust This Computer.\n" + result.Output); continue; }
                     try { discovery.Devices.Add(Device.FromProperties(result.Output, udid)); }
                     catch (InvalidOperationException e) { discovery.Issues.Add(e.Message); }
                 }
             }
-            else discovery.Issues.Add("Normal-mode detection failed. Check Apple Devices and its USB drivers.\n" + normal.Output);
-            var recovery = await runner.RunAsync("irecovery", new[] { "-q" }, 20, null);
-            if (recovery.ExitCode == 0) {
+            else if (normal != null) discovery.Issues.Add("Normal-mode detection failed. Check Apple Devices and its USB drivers.\n" + normal.Output);
+            var recovery = await DetectAsync("irecovery", new[] { "-q" }, discovery);
+            if (recovery != null && recovery.ExitCode == 0) {
                 try { discovery.Devices.Add(Device.FromProperties(recovery.Output, null)); }
                 catch (InvalidOperationException e) { discovery.Issues.Add(e.Message); }
             }
-            else if (recovery.Output.IndexOf("Unable to connect to device", StringComparison.OrdinalIgnoreCase) < 0)
+            else if (recovery != null && recovery.Output.IndexOf("Unable to connect to device", StringComparison.OrdinalIgnoreCase) < 0)
                 discovery.Issues.Add("Recovery-mode detection failed.\n" + recovery.Output);
             return discovery;
+        }
+
+        private async Task<ToolResult> DetectAsync(string tool, string[] args, Discovery discovery)
+        {
+            try { return await runner.RunAsync(tool, args, 20, null); }
+            catch (Exception e) {
+                if (!ToolRunner.IsExpectedFailure(e)) throw;
+                discovery.Issues.Add(e.Message);
+                return null;
+            }
         }
 
         public async Task EnterRecoveryAsync(Device device, Action<string> output)

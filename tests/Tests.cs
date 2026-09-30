@@ -25,6 +25,7 @@ internal static class Tests
 
     private static async Task RunAsync()
     {
+        await MonitorChecksAsync();
         var normal = Device.FromProperties(Normal, "test-udid");
         var recovery = Device.FromProperties(Recovery, null);
         Check(normal.Ecid == recovery.Ecid && normal.Board == recovery.Board, "decimal / hexadecimal ECID and hardware normalization");
@@ -109,6 +110,126 @@ internal static class Tests
     }
 
     private static ToolResult Success(string output) { return new ToolResult { ExitCode = 0, Output = output }; }
+    private static Discovery Found(string properties, string udid)
+    {
+        var found = new Discovery();
+        if (properties != null) found.Devices.Add(Device.FromProperties(properties, udid));
+        return found;
+    }
+
+    private static async Task MonitorChecksAsync()
+    {
+        Discovery found = Found(null, null);
+        bool fail = false;
+        using (var monitor = new DeviceMonitor(() => {
+            if (fail) throw new Win32Exception(1260, "Blocked test tool");
+            return Task.FromResult(found);
+        })) {
+            int changes = 0;
+            monitor.Changed += (s, e) => changes++;
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Connection == ConnectionState.Disconnected && monitor.Snapshot.CurrentDevice == null, "empty scan clears connected context");
+            found = Found(Normal, "test-udid");
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Connection == ConnectionState.Connected && monitor.Snapshot.CurrentDevice.Name == "Test phone", "monitor publishes real connected context");
+            int before = changes;
+            for (int i = 0; i < 5; i++) { found = Found(Normal, "test-udid"); await monitor.RefreshAsync(); }
+            Check(changes == before && monitor.Snapshot.Connection == ConnectionState.Connected, "equivalent polls do not publish scanning or rerender events");
+            found = Found(Recovery, null);
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.CurrentDevice.Mode == DeviceMode.Recovery && monitor.Snapshot.CurrentDevice.Name == "Test phone"
+                && monitor.Snapshot.CurrentDevice.Udid == "test-udid" && monitor.Snapshot.CurrentDevice.Version == "18.0" && monitor.Snapshot.CurrentDevice.InformationIsCached,
+                "normal-to-recovery retains labeled device context by ECID");
+            before = changes;
+            found = Found(Recovery, null);
+            await monitor.RefreshAsync();
+            Check(changes == before, "cached recovery polls remain visually stable");
+            found = Found(Recovery.Replace("MODE: Recovery", "MODE: DFU"), null);
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.CurrentDevice.Mode == DeviceMode.Dfu && monitor.Snapshot.CurrentDevice.Name == "Test phone", "DFU transition retains identity");
+            found = Found(Normal, "test-udid");
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.CurrentDevice.Mode == DeviceMode.Normal && !monitor.Snapshot.CurrentDevice.InformationIsCached, "normal reconnect replaces cached properties");
+            fail = true;
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Connection == ConnectionState.Error && monitor.Snapshot.CurrentDevice != null, "launch failure retains context without claiming connection");
+            fail = false;
+            found = Found(null, null);
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Connection == ConnectionState.Disconnected && monitor.Snapshot.Devices.Count == 0, "disconnect clears selected device");
+            found = Found(Recovery, null);
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.CurrentDevice.Name == "Test phone" && monitor.Snapshot.CurrentDevice.InformationIsCached, "recovery after USB re-enumeration retains labeled normal-mode context");
+            found = Found(Normal, "test-udid");
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Connection == ConnectionState.Connected, "monitor recovers after errors and reconnects");
+            found.Devices.Add(Device.FromProperties(Normal.Replace("123456", "123457").Replace("Test phone", "Second phone"), "second-udid"));
+            await monitor.RefreshAsync();
+            monitor.Select("123457");
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.CurrentDevice.Name == "Second phone", "selection persists across multiple-device scans");
+            found.Devices.Add(Device.FromProperties(Recovery.Replace("123456", "123457").Replace("1e240", "1e241"), null));
+            await monitor.RefreshAsync();
+            Check(monitor.Snapshot.Devices.Count == 2, "transition scan deduplicates the same ECID");
+            var flow = new FirmwareFlow();
+            var device = Device.FromProperties(Normal, "test-udid");
+            flow.ObserveDevice(device, true);
+            flow.ContinueFromDevice();
+            flow.SelectFirmware(Firmware.Parse(Manifest));
+            flow.ContinueFromFirmware();
+            flow.SelectType(true);
+            flow.Review(device);
+            Reject(flow.Start, "workflow blocks erase without acknowledgement");
+            flow.Acknowledged = true; flow.Confirmation = "erase";
+            Check(!flow.CanInstall, "workflow requires case-sensitive ERASE");
+            flow.Confirmation = "ERASE";
+            Check(flow.CanInstall, "workflow allows acknowledged erase");
+            flow.Back();
+            Check(!flow.Acknowledged && flow.Confirmation == "" && !flow.CanInstall, "back navigation clears destructive confirmation");
+            flow.Review(device); flow.Acknowledged = true; flow.Confirmation = "ERASE";
+            flow.ObserveDevice(Device.FromProperties(Normal.Replace("123456", "123457"), "other"), true);
+            Check(flow.Step == FirmwareStep.Device && flow.Firmware == null && !flow.CanInstall, "device swap discards firmware and confirmation");
+            flow.ObserveDevice(device, true);
+            flow.ContinueFromDevice(); flow.SelectFirmware(Firmware.Parse(Manifest)); flow.ContinueFromFirmware();
+            flow.SelectType(false); flow.Review(device); flow.Acknowledged = true; flow.Start();
+            flow.ObserveDevice(null, false);
+            Check(flow.Step == FirmwareStep.Installation, "disconnect during install preserves operation view");
+            flow.Complete("USB connection lost");
+            Check(flow.Step == FirmwareStep.Result && !flow.Succeeded && flow.Error == "USB connection lost", "failed backend result never claims success");
+        }
+        using (var recoveryOnly = new DeviceMonitor(() => Task.FromResult(Found(Recovery, null)))) {
+            await recoveryOnly.RefreshAsync();
+            int recoveryChanges = 0;
+            recoveryOnly.Changed += (s, e) => recoveryChanges++;
+            await recoveryOnly.RefreshAsync();
+            Check(recoveryChanges == 0 && !recoveryOnly.Snapshot.CurrentDevice.InformationIsCached, "recovery-only scans do not invent cached normal-mode data");
+        }
+        int calls = 0;
+        var pending = new TaskCompletionSource<Discovery>();
+        using (var monitor = new DeviceMonitor(() => { calls++; return pending.Task; })) {
+            var scan = monitor.RefreshAsync();
+            await monitor.RefreshAsync();
+            var pause = monitor.SuspendAsync();
+            await monitor.RefreshAsync();
+            Check(calls == 1 && !pause.IsCompleted, "manual refresh and operation pause cannot overlap scans");
+            pending.SetResult(Found(Normal, "test-udid"));
+            await scan; await pause;
+            await monitor.RefreshAsync();
+            Check(calls == 1, "suspended monitor leaves USB ownership with operation");
+            monitor.Resume();
+            await monitor.RefreshAsync();
+            Check(calls == 2, "monitor resumes after operation");
+        }
+        pending = new TaskCompletionSource<Discovery>();
+        var disposed = new DeviceMonitor(() => pending.Task);
+        var lastScan = disposed.RefreshAsync();
+        int notifications = 0;
+        disposed.Changed += (s, e) => notifications++;
+        disposed.Dispose();
+        pending.SetResult(Found(Normal, "test-udid"));
+        await lastScan;
+        Check(notifications == 0, "disposed monitor ignores late scan completion");
+    }
     private static void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); passed++; Console.WriteLine("PASS: " + name); }
     private static void Reject(Action action, string name)
     {

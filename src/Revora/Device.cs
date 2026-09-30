@@ -20,9 +20,34 @@ namespace Revora
         public string BuildVersion { get; set; }
         public string ActivationState { get; set; }
         public string WifiAddress { get; set; }
+        public bool InformationIsCached { get; private set; }
+        public bool IsIpad { get { return Product != null && Product.StartsWith("iPad", StringComparison.Ordinal); } }
+        public string PlatformName { get { return IsIpad ? "iPadOS" : "iOS"; } }
+        public string ModeLabel { get { return Mode == DeviceMode.Dfu ? "DFU Mode" : Mode == DeviceMode.Recovery ? "Recovery Mode" : "Normal Mode"; } }
         public string Identity { get { return Ecid != 0 ? Ecid.ToString(CultureInfo.InvariantCulture) : Udid; } }
         public string EcidArgument { get { return "0x" + Ecid.ToString("x", CultureInfo.InvariantCulture); } }
         public override string ToString() { return Name + " · " + Product + " · " + Mode; }
+
+        internal bool SameInformation(Device other)
+        {
+            return Udid == other.Udid && Ecid == other.Ecid && Name == other.Name && Product == other.Product
+                && Board == other.Board && Version == other.Version && Mode == other.Mode
+                && SerialNumber == other.SerialNumber && BuildVersion == other.BuildVersion
+                && ActivationState == other.ActivationState && WifiAddress == other.WifiAddress
+                && InformationIsCached == other.InformationIsCached;
+        }
+
+        internal void PreserveContext(Device previous)
+        {
+            InformationIsCached = true;
+            Name = previous.Name;
+            if (string.IsNullOrEmpty(Udid)) Udid = previous.Udid;
+            if (Version == "Unavailable in recovery mode") Version = previous.Version;
+            if (string.IsNullOrEmpty(BuildVersion)) BuildVersion = previous.BuildVersion;
+            if (string.IsNullOrEmpty(SerialNumber)) SerialNumber = previous.SerialNumber;
+            if (string.IsNullOrEmpty(ActivationState)) ActivationState = previous.ActivationState;
+            if (string.IsNullOrEmpty(WifiAddress)) WifiAddress = previous.WifiAddress;
+        }
 
         public static Dictionary<string, string> ParseProperties(string output)
         {

@@ -43,11 +43,17 @@ namespace Revora
             return RequiredTools.Where(tool => !File.Exists(Path.Combine(DirectoryPath, tool + ".exe"))).ToArray();
         }
 
+        internal static bool IsExpectedFailure(Exception error)
+        {
+            return error is IOException || error is InvalidOperationException || error is TimeoutException
+                || error is Win32Exception || error is System.Xml.XmlException || error is UnauthorizedAccessException;
+        }
+
         public async Task<ToolResult> RunAsync(string tool, IEnumerable<string> arguments, int timeoutSeconds, Action<string> output)
         {
             if (!RequiredTools.Contains(tool)) throw new ArgumentException("Unknown device tool.", "tool");
             string executable = Path.Combine(DirectoryPath, tool + ".exe");
-            if (!File.Exists(executable)) throw new FileNotFoundException("Missing " + tool + ".exe. Open Setup to configure the device tools.", executable);
+            if (!File.Exists(executable)) throw new FileNotFoundException("Missing " + tool + ".exe. Open Settings to configure the device tools.", executable);
             Directory.CreateDirectory(workingDirectory);
             var start = new ProcessStartInfo(executable) {
                 Arguments = string.Join(" ", arguments.Select(QuoteArgument)),
