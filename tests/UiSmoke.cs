@@ -42,7 +42,11 @@ internal static class UiSmoke
                 int before = scans;
                 for (int i = 0; i < 3; i++) {
                     foreach (string page in new[] { "Home", "Recovery", "Firmware", "Activity", "Settings" }) form.Navigate(page);
-                    using (var details = new DeviceDetails(device)) Render(details, Path.Combine(root, "device-details.png"));
+                    using (var details = new DeviceDetails(device)) {
+                        Render(details, Path.Combine(root, "device-details.png"));
+                        var content = FindControls(details).OfType<Panel>().Single(p => p.AutoScroll);
+                        if (content.AutoScrollPosition.Y != 0) throw new Exception("Device details must open at the heading, not scroll to the first identifier.");
+                    }
                 }
                 if (scans != before) throw new Exception("Navigation and details must not create USB scans.");
                 foreach (string page in new[] { "Home", "Recovery", "Firmware", "Activity", "Settings" }) {

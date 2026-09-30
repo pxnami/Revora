@@ -34,6 +34,10 @@ namespace Revora
             root.Controls.Add(scroll, 0, 0);
             root.Controls.Add(Buttons, 0, 1);
             Controls.Add(root);
+            Shown += (s, e) => {
+                if (CancelButton is Control) ActiveControl = (Control)CancelButton;
+                scroll.AutoScrollPosition = Point.Empty;
+            };
             AddText(title, true);
         }
         protected void AddText(string text, bool heading = false)
