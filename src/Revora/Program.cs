@@ -7,8 +7,8 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("iPhone and iPad recovery and firmware restore")]
 [assembly: AssemblyCompany("Revora")]
 [assembly: AssemblyProduct("Revora")]
-[assembly: AssemblyVersion("0.1.0.0")]
-[assembly: AssemblyFileVersion("0.1.0.0")]
+[assembly: AssemblyVersion("0.2.0.0")]
+[assembly: AssemblyFileVersion("0.2.0.0")]
 
 namespace Revora
 {

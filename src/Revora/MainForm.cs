@@ -75,7 +75,7 @@ namespace Revora
             erase.CheckedChanged += (s, e) => UpdateControls();
             scanTimer.Tick += async (s, e) => { if (!busy) await ScanAsync(true); };
             Shown += async (s, e) => {
-                Log("Revora 0.1.0 · session log: " + sessionLog);
+                Log("Revora " + Application.ProductVersion + " · session log: " + sessionLog);
                 UpdateControls();
                 if (runner.MissingTools().Length > 0) {
                     status.Text = "Device tools need setup";
