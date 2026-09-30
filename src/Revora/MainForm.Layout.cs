@@ -68,18 +68,11 @@ namespace Revora
             install.Controls.Add(Note("Back up first. Update attempts to preserve data; erase deletes it.", 12));
             tools.Controls.Add(install, 1, 0);
 
-            var more = Stack(new Padding(0));
             var information = Tile("Device information", "View the model, serial number, iOS version, and identifiers reported over USB.");
             details = MakeButton("View details", false);
             details.Click += (s, e) => { if (SelectedDevice != null) using (var dialog = new DeviceDetails(SelectedDevice)) dialog.ShowDialog(this); };
             information.Controls.Add(details);
-            more.Controls.Add(information);
-            var management = Tile("Device management", "Remove a removable profile using its password in device Settings.");
-            var guide = MakeButton("Profile removal guide", false);
-            guide.Click += (s, e) => { using (var dialog = new ManagementGuide()) dialog.ShowDialog(this); };
-            management.Controls.Add(guide);
-            more.Controls.Add(management);
-            tools.Controls.Add(more, 2, 0);
+            tools.Controls.Add(information, 2, 0);
             root.Controls.Add(tools);
 
             var activity = MakeButton("Show activity", false);

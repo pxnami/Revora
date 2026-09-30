@@ -57,10 +57,6 @@ internal static class UiSmoke
                 var rows = FindControls(details).OfType<DataGridView>().Single();
                 if (rows.Rows.Count != 10 || (string)rows.Rows[5].Cells[1].Value != "Not reported") throw new Exception("Device details must show unavailable values without inventing data.");
             }
-            using (var guide = new ManagementGuide()) {
-                Render(guide, Path.Combine(root, "revora-profile-removal.png"));
-                if (FindControls(guide).OfType<TextBox>().Any()) throw new Exception("The removal guide must not collect passwords.");
-            }
             Console.WriteLine("UI smoke checks passed: startup guards, erase confirmation, desktop and small-window rendering.");
             return 0;
         }

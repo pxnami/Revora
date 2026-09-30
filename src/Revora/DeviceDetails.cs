@@ -1,5 +1,3 @@
-using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -44,27 +42,6 @@ namespace Revora
         private static void Add(DataGridView rows, string field, string value)
         {
             rows.Rows.Add(field, string.IsNullOrEmpty(value) ? "Not reported" : value);
-        }
-    }
-
-    internal sealed class ManagementGuide : Form
-    {
-        public ManagementGuide()
-        {
-            Text = "Profile removal · Revora";
-            Font = new Font("Segoe UI", 10F);
-            BackColor = Color.White;
-            AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(620, 510);
-            MinimumSize = new Size(560, 440);
-            StartPosition = FormStartPosition.CenterParent;
-            var root = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(26), FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
-            root.Controls.Add(new Label { Text = "Remove a management profile", Font = new Font(Font.FontFamily, 19F, FontStyle.Bold), AutoSize = true, MaximumSize = new Size(550, 0), Margin = new Padding(0, 0, 0, 16) });
-            root.Controls.Add(new Label { Text = "On your iPhone or iPad:\n\n1. Open Settings → General → VPN & Device Management.\n2. Select the profile and choose Remove Profile or Remove Management, if available.\n3. Enter the device passcode and profile removal password if prompted.\n\nRemoving a profile also removes its associated settings, apps, and data.\n\nIf removal is unavailable or the device shows Remote Management during setup, ask the enrolling organization to unenroll or release it. Restoring firmware may enroll it again.\n\nRevora provides these instructions; it does not remove profiles over USB or verify a removal password. Enter passwords only on the device or your organization’s official management portal.", AutoSize = true, MaximumSize = new Size(550, 0), Margin = new Padding(0, 0, 0, 20) });
-            var documentation = MainForm.MakeButton("Open Apple’s removal instructions", false);
-            documentation.Click += (s, e) => Process.Start(new ProcessStartInfo("https://support.apple.com/guide/iphone/iph6c493b19/ios") { UseShellExecute = true });
-            root.Controls.Add(documentation);
-            Controls.Add(root);
         }
     }
 }
