@@ -1,47 +1,67 @@
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace Revora
 {
-    internal sealed class DeviceDetails : Form
+    internal sealed class DeviceDetails : RevoraDialog
     {
-        public DeviceDetails(Device device)
+        private readonly Timer feedback = new Timer { Interval = 1500 };
+        private RevoraButton copiedButton;
+        public DeviceDetails(Device device) : base("Device details", 660, 600)
         {
-            Text = "Device information · Revora";
-            Font = new Font("Segoe UI", 10F);
-            BackColor = Color.White;
-            AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(600, 540);
-            MinimumSize = new Size(500, 420);
-            StartPosition = FormStartPosition.CenterParent;
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1, RowCount = 3 };
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.Controls.Add(new Label { Text = device.Name, AutoSize = true, Font = new Font(Font.FontFamily, 20F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 18) }, 0, 0);
-            var rows = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false, AllowUserToResizeRows = false, RowHeadersVisible = false, BackgroundColor = Color.White, BorderStyle = BorderStyle.None, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, SelectionMode = DataGridViewSelectionMode.CellSelect };
-            rows.DefaultCellStyle.SelectionBackColor = Color.Black;
-            rows.DefaultCellStyle.SelectionForeColor = Color.White;
-            rows.Columns.Add("field", "Field");
-            rows.Columns.Add("value", "Reported value");
-            Add(rows, "Connection mode", device.Mode.ToString());
-            Add(rows, "Product model", device.Product);
-            Add(rows, "Hardware board", device.Board);
-            Add(rows, "iOS / iPadOS", device.Version);
-            Add(rows, "Build", device.BuildVersion);
-            Add(rows, "Serial number", device.SerialNumber);
-            Add(rows, "UDID", device.Udid);
-            Add(rows, "ECID", device.Ecid == 0 ? null : device.EcidArgument);
-            Add(rows, "Activation state", device.ActivationState);
-            Add(rows, "Wi-Fi address", device.WifiAddress);
-            root.Controls.Add(rows, 0, 1);
-            root.Controls.Add(new Label { Text = "Values come from the selected device. Some fields are unavailable in recovery or DFU mode. Select cells and press Ctrl+C to copy.", AutoSize = true, MaximumSize = new Size(540, 0), Margin = new Padding(0, 16, 0, 0) }, 0, 2);
-            Controls.Add(root);
+            AddText(device.Name + " · " + device.ModeLabel + "\nSnapshot captured at " + DateTime.Now.ToString("HH:mm:ss") + (device.InformationIsCached ? ". Some values are cached from the last normal-mode connection." : ". Values reported by the device."));
+            Group("General");
+            Row("Name", device.Name);
+            Row("Mode", device.ModeLabel);
+            Row(device.PlatformName + " version", device.Version);
+            Row("Build", device.BuildVersion);
+            Row("Activation", device.ActivationState);
+            Group("Hardware");
+            Row("Product model", device.Product);
+            Row("Hardware board", device.Board);
+            Group("Identifiers");
+            Row("Serial number", device.SerialNumber, true);
+            Row("UDID", device.Udid, true);
+            Row("ECID", device.Ecid == 0 ? null : device.EcidArgument, true);
+            Group("Network");
+            Row("Wi-Fi address", device.WifiAddress, true);
+            CancelButton = AddButton("Done", DialogResult.OK, ButtonKind.Primary);
+            AcceptButton = CancelButton;
+            Shown += (s, e) => ActiveControl = (Control)CancelButton;
+            feedback.Tick += (s, e) => { if (copiedButton != null) { copiedButton.Text = "Copy"; copiedButton.AccessibleName = "Copy value"; } copiedButton = null; feedback.Stop(); };
         }
-
-        private static void Add(DataGridView rows, string field, string value)
+        private void Group(string name)
         {
-            rows.Rows.Add(field, string.IsNullOrEmpty(value) ? "Not reported" : value);
+            BodyPanel.Controls.Add(new Label { Text = name, AutoSize = true, Font = Theme.Font(12F, FontStyle.Bold), Margin = new Padding(0, 16, 0, 12) });
         }
+        private void Row(string title, string value, bool identifier = false)
+        {
+            bool available = !string.IsNullOrEmpty(value) && value != "Unknown" && value != "Not reported";
+            var row = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 0, 0, 8) };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
+            row.Controls.Add(new Label { Text = title, AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(0, 8, 8, 0) }, 0, 0);
+            var text = new TextBox { Text = available ? value : "Not reported", ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Theme.Background,
+                ForeColor = available ? Theme.Ink : Theme.Muted, Font = identifier ? new Font("Consolas", 9F) : Theme.Font(10F),
+                Multiline = true, Height = identifier && value != null && value.Length > 30 ? 40 : 24, Dock = DockStyle.Top, Margin = new Padding(0, 8, 8, 0), AccessibleName = title, TabStop = identifier && available };
+            row.Controls.Add(text, 1, 0);
+            if (identifier) {
+                var copy = new RevoraButton("Copy", ButtonKind.Quiet, "copy") { Width = 104, Height = 32, Enabled = available, AccessibleName = "Copy " + title };
+                copy.Click += (s, e) => {
+                    try {
+                        Clipboard.SetText(value);
+                        if (copiedButton != null) copiedButton.Text = "Copy";
+                        copiedButton = copy; copy.Text = "Copied"; copy.AccessibleName = title + " copied"; feedback.Stop(); feedback.Start();
+                    } catch (System.Runtime.InteropServices.ExternalException error) {
+                        using (var notice = new NoticeDialog("Couldn’t copy", "The Windows clipboard is busy. Select the value and try copying it again.", error.Message)) notice.ShowDialog(this);
+                    }
+                };
+                row.Controls.Add(copy, 2, 0);
+            }
+            BodyPanel.Controls.Add(row);
+        }
+        protected override void Dispose(bool disposing) { if (disposing) feedback.Dispose(); base.Dispose(disposing); }
     }
 }

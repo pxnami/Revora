@@ -1,96 +1,102 @@
 using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace Revora
 {
-    internal sealed class RestoreConfirmation : Form
+    internal class RevoraDialog : Form
     {
-        public RestoreConfirmation(Device device, Firmware firmware, bool erase)
+        protected readonly TableLayoutPanel BodyPanel;
+        protected readonly FlowLayoutPanel Buttons;
+        public RevoraDialog(string title, int width = 560, int height = 360)
         {
-            Text = erase ? "Confirm erase restore" : "Confirm firmware update";
-            BackColor = Color.White;
-            Font = new Font("Segoe UI", 10F);
+            SuspendLayout();
+            Text = title + " · Revora";
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            Font = Theme.Font(10F);
+            ForeColor = Theme.Ink;
+            BackColor = Theme.Background;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(580, 430);
-            MinimumSize = new Size(600, 470);
+            ClientSize = new Size(width, height);
+            MinimumSize = new Size(width, height);
             StartPosition = FormStartPosition.CenterParent;
             MaximizeBox = false;
             MinimizeBox = false;
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1, RowCount = 5 };
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.Controls.Add(new Label { AutoSize = true, Font = new Font("Segoe UI", 15F, FontStyle.Bold), Text = erase ? "This will delete all device data" : "Install firmware on this device" }, 0, 0);
-            layout.Controls.Add(new Label { AutoSize = true, MaximumSize = new Size(510, 0), Margin = new Padding(0, 12, 0, 12), Text = device.Name + " · " + device.Product + "\nECID " + device.EcidArgument + "\niOS / iPadOS " + firmware.Version + " (" + firmware.Build + ")\n\n" + (erase ? "All apps, settings, and personal data will be erased. You will need the Apple Account associated with the device to activate it." : "The update attempts to preserve data, but data loss is possible. Apple must still sign this firmware. Revora cannot fix hardware faults.") }, 0, 1);
-            var acknowledged = new CheckBox { Text = "I have a backup or accept the risk of data loss", AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
-            layout.Controls.Add(acknowledged, 0, 2);
-            var phrase = new TextBox { Dock = DockStyle.Top };
-            if (erase) {
-                var field = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, FlowDirection = FlowDirection.TopDown };
-                field.Controls.Add(new Label { Text = "Type ERASE to confirm:", AutoSize = true });
-                phrase.Width = 240;
-                field.Controls.Add(phrase);
-                layout.Controls.Add(field, 0, 3);
-            }
-            var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-            var confirm = MainForm.MakeButton(erase ? "Erase and install" : "Install update", true);
-            confirm.Enabled = false;
-            confirm.DialogResult = DialogResult.OK;
-            var cancel = MainForm.MakeButton("Cancel", false);
-            cancel.DialogResult = DialogResult.Cancel;
-            buttons.Controls.Add(confirm);
-            buttons.Controls.Add(cancel);
-            layout.Controls.Add(buttons, 0, 4);
-            Action update = () => confirm.Enabled = acknowledged.Checked && (!erase || phrase.Text == "ERASE");
-            acknowledged.CheckedChanged += (s, e) => update();
-            phrase.TextChanged += (s, e) => update();
-            CancelButton = cancel;
-            Controls.Add(layout);
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28), ColumnCount = 1, RowCount = 2 };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            BodyPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1 };
+            BodyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            scroll.Controls.Add(BodyPanel);
+            Buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Margin = new Padding(0, 16, 0, 0) };
+            root.Controls.Add(scroll, 0, 0);
+            root.Controls.Add(Buttons, 0, 1);
+            Controls.Add(root);
+            Shown += (s, e) => {
+                if (CancelButton is Control) ActiveControl = (Control)CancelButton;
+                scroll.AutoScrollPosition = Point.Empty;
+            };
+            AddText(title, true);
+        }
+        protected override void OnLoad(EventArgs e) { ResumeLayout(true); base.OnLoad(e); }
+        protected void AddText(string text, bool heading = false)
+        {
+            BodyPanel.Controls.Add(new Label { Text = text, AutoSize = true, MaximumSize = new Size(ClientSize.Width - 72, 0),
+                Font = Theme.Font(heading ? 18F : 10F, heading ? FontStyle.Bold : FontStyle.Regular),
+                ForeColor = heading ? Theme.Ink : Theme.Muted, Margin = new Padding(0, 0, 0, 18) });
+        }
+        protected RevoraButton AddButton(string text, DialogResult result, ButtonKind kind)
+        {
+            var button = new RevoraButton(text, kind) { DialogResult = result };
+            Buttons.Controls.Add(button);
+            return button;
         }
     }
 
-    internal sealed class SetupForm : Form
+    internal sealed class NoticeDialog : RevoraDialog
     {
-        private readonly TextBox path;
-        public string ToolsPath { get { return path.Text.Trim(); } }
-
-        public SetupForm(string toolsPath, string dataPath)
+        public NoticeDialog(string title, string message, string detail) : base(title, 560, 380)
         {
-            Text = "Revora setup";
-            BackColor = Color.White;
-            Font = new Font("Segoe UI", 10F);
-            AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(620, 400);
-            MinimumSize = new Size(640, 430);
-            StartPosition = FormStartPosition.CenterParent;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1, RowCount = 6 };
-            for (int i = 0; i < 5; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.Controls.Add(new Label { Text = "Connect the device tools", AutoSize = true, Font = new Font("Segoe UI", 15F, FontStyle.Bold) }, 0, 0);
-            layout.Controls.Add(new Label { Text = "1. Install Apple Devices from Microsoft Store for Apple's USB drivers.\n2. Use the tools folder shipped with Revora, or build it using the repository's native build script.\n3. Connect your device, unlock it, and accept Trust This Computer.\n\nConnect one recovery / DFU device at a time. Firmware signing and device support depend on the native tools. Revora does not bypass Activation Lock.", AutoSize = true, MaximumSize = new Size(560, 0), Margin = new Padding(0, 14, 0, 14) }, 0, 1);
-            var row = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2 };
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            path = new TextBox { Text = toolsPath, Dock = DockStyle.Fill };
-            var browse = MainForm.MakeButton("Browse…", false);
-            browse.Click += (s, e) => { using (var picker = new FolderBrowserDialog { Description = "Select the folder containing Apple device utilities", SelectedPath = path.Text }) if (picker.ShowDialog(this) == DialogResult.OK) path.Text = picker.SelectedPath; };
-            row.Controls.Add(path, 0, 0);
-            row.Controls.Add(browse, 1, 0);
-            layout.Controls.Add(row, 0, 2);
-            var logs = MainForm.MakeButton("Open logs and cache", false);
-            logs.Margin = new Padding(0, 14, 0, 14);
-            logs.Click += (s, e) => Process.Start(new ProcessStartInfo(dataPath) { UseShellExecute = true });
-            layout.Controls.Add(logs, 0, 3);
-            var save = MainForm.MakeButton("Save tools folder", true);
-            save.DialogResult = DialogResult.OK;
-            layout.Controls.Add(save, 0, 4);
-            Controls.Add(layout);
+            AddText(message);
+            if (!string.IsNullOrEmpty(detail)) {
+                var text = new TextBox { Text = detail, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Top, Height = 110, Visible = false, Font = new Font("Consolas", 9F) };
+                var toggle = new RevoraButton("Show details", ButtonKind.Quiet);
+                toggle.Click += (s, e) => { text.Visible = !text.Visible; toggle.Text = text.Visible ? "Hide details" : "Show details"; };
+                BodyPanel.Controls.Add(toggle);
+                BodyPanel.Controls.Add(text);
+            }
+            var close = AddButton("Close", DialogResult.OK, ButtonKind.Primary);
+            AcceptButton = close; CancelButton = close;
+        }
+    }
+
+    internal sealed class ActionConfirmation : RevoraDialog
+    {
+        public ActionConfirmation(string title, string message, string action) : base(title)
+        {
+            AddText(message);
+            var confirm = AddButton(action, DialogResult.OK, ButtonKind.Primary);
+            CancelButton = AddButton("Cancel", DialogResult.Cancel, ButtonKind.Secondary);
+            AcceptButton = confirm;
+        }
+    }
+
+    internal sealed class DeviceChooser : RevoraDialog
+    {
+        public string SelectedIdentity { get; private set; }
+        public DeviceChooser(IEnumerable<Device> devices) : base("Choose a device")
+        {
+            foreach (var device in devices) {
+                var selected = device;
+                var button = new RevoraButton(device.Name + " · " + device.ModeLabel) { Dock = DockStyle.Top, Height = 44, Margin = new Padding(0, 0, 0, 12) };
+                button.Click += (s, e) => { SelectedIdentity = selected.Identity; DialogResult = DialogResult.OK; Close(); };
+                BodyPanel.Controls.Add(button);
+            }
+            CancelButton = AddButton("Cancel", DialogResult.Cancel, ButtonKind.Secondary);
         }
     }
 }

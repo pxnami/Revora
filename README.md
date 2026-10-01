@@ -1,48 +1,114 @@
-# Revora
+<div align="center">
+  <img src="assets/revora-logo.png" width="92" height="92" alt="Revora logo">
 
-Windows desktop utility for iPhone and iPad recovery mode and IPSW firmware installs. Built with C# and Windows Forms; native device communication uses the libimobiledevice tools.
+  # Revora
 
-**Early development release. Real-device recovery and restore are not yet validated. Back up before installing firmware.**
+  **A Windows recovery-mode and IPSW firmware utility for iPhone and iPad.**
 
-## Features
+  [![Download prerelease](https://img.shields.io/badge/Download_prerelease-2F6EBB?style=for-the-badge)](https://github.com/pxnami/Revora/releases)
+  [![Windows build](https://img.shields.io/badge/Windows_build-101828?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/pxnami/Revora/actions/workflows/windows.yml)
+  [![Report issue](https://img.shields.io/badge/Report_issue-E9EEF5?style=for-the-badge&labelColor=101828)](https://github.com/pxnami/Revora/issues)
 
-- USB device detection, device information, and automatic refresh.
-- Black-and-white home screen with an original circle-and-wave logo.
-- Device information with reported serial number, firmware build, activation state, Wi-Fi address, UDID, and ECID. Fields unavailable over USB are marked as not reported.
-- Enter recovery mode and request a return to normal mode.
-- Recognize DFU devices; exit DFU with a manual force restart.
-- Select a local IPSW, inspect its manifest, and check product, hardware, and install variant compatibility.
-- Update installs that attempt to preserve data, or erase restores with explicit confirmation.
-- ECID-targeted restore with a fresh identity check before starting.
-- Native restore stage progress and local activity logs.
+  <sub>Open source, local-first, and built for Windows 10/11 x64.</sub>
+</div>
 
-Revora cannot guarantee data preservation, repair hardware, bypass Activation Lock, or restore firmware Apple no longer signs. Exit recovery requests a reboot; an underlying boot problem can return the device to recovery.
+<br>
 
-## Run
+![Revora device overview](docs/screenshots/overview.png)
 
-Requires Windows 10/11 x64, .NET Framework 4.8, and Apple's USB drivers (install [Apple Devices](https://support.apple.com/guide/devices-windows/welcome/windows)).
+> [!WARNING]
+> Revora is an early development release. Recovery and firmware operations have automated coverage, but real-device restore has not yet been validated. Back up your device before installing firmware.
 
-Extract the complete `Revora-windows-x64.zip` and run `Revora.exe`. Keep the `tools` folder next to the executable. Unlock a normal-mode device and accept **Trust This Computer**. Connect one recovery / DFU device at a time; the recovery CLI discovers one device per scan.
+## What it does
 
-For firmware installs, choose an Apple IPSW that matches the device. Revora checks local compatibility; the restore engine checks signing with Apple during the install. An update requires an Update install variant in the IPSW. Erase restore deletes all data and does not remove the device's Apple Account association.
+Revora provides a focused Windows interface for inspecting an iPhone or iPad, entering or leaving recovery mode, and installing a compatible local IPSW. Device communication is handled by pinned builds from the libimobiledevice ecosystem.
 
-Logs and extracted firmware cache are stored in `%LOCALAPPDATA%\Revora`. Logs may contain device identifiers; review them before sharing. Open the folder from Setup. You can delete cached files after an operation has finished to reclaim disk space.
+| Device | Recovery | Firmware |
+| --- | --- | --- |
+| Automatic USB detection | Enter recovery mode | Inspect local IPSW manifests |
+| Device and firmware details | Request a return to normal mode | Check product and hardware compatibility |
+| Normal, recovery, and DFU recognition | Manual DFU exit guidance | Update or erase restore workflows |
+| Local activity history | Mode-aware device status | Native progress and operation logs |
 
-### Windows application control
+## Interface
 
-The current release and its native tools are unsigned. Windows application control can block a tool even when `Revora.exe` opens. If the log reports that a policy blocked a file, check Windows' **CodeIntegrity / Operational** event log for the blocked filename. Revora also includes the executable path and Windows error code in launch failures in builds after 0.1.0.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/recovery.png" alt="Revora recovery mode screen"></td>
+    <td width="50%"><img src="docs/screenshots/firmware.png" alt="Revora firmware workflow"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Recovery controls and current device mode.</sub></td>
+    <td align="center"><sub>Device-targeted firmware compatibility flow.</sub></td>
+  </tr>
+</table>
 
-A compatible release needs signatures trusted by the active policy on the app, native executables, and DLLs. Signing only `Revora.exe` does not cover the tools. For Smart App Control, see [Microsoft's signing requirements](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/code-signing-for-smart-app-control). A managed application-control policy may also require an administrator to authorize the publisher.
+<sub>Screenshots are generated by the UI test suite with synthetic device data.</sub>
 
-## Build
+## Restore safeguards
 
-The desktop app builds with the C# compiler included in Windows .NET Framework. No NuGet packages or SDK install are required.
+Revora treats firmware installation as a device-specific operation. Before execution it:
+
+1. Reads the selected IPSW manifest.
+2. Validates product type, hardware board, and install variant.
+3. Targets the connected device by ECID.
+4. Rechecks device identity immediately before restore.
+5. Separates update and erase modes.
+6. Requires explicit confirmation before an erase restore.
+
+An update attempts to preserve user data but cannot guarantee it. An erase restore deletes all data. Revora cannot repair hardware, bypass Activation Lock, remove an Apple Account association, or install firmware Apple no longer signs.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[WinForms interface] --> B[Device service]
+    B --> C[libimobiledevice tools]
+    B --> D[Recovery controls]
+    A --> E[IPSW validation]
+    E --> F[ECID and compatibility checks]
+    F --> G[idevicerestore]
+    C --> H[iPhone or iPad over USB]
+    G --> H
+```
+
+Device monitoring uses a single serialized polling loop. Unchanged scans do not rerender the interface, operations pause background monitoring while they own the USB tools, and matching device identity can be retained across mode changes.
+
+## Install
+
+Requirements:
+
+- Windows 10 or 11 x64
+- .NET Framework 4.8
+- Apple USB drivers from [Apple Devices for Windows](https://support.apple.com/guide/devices-windows/welcome/windows)
+
+Download the latest prerelease from [GitHub Releases](https://github.com/pxnami/Revora/releases), extract the complete archive, and run `Revora.exe`. Keep the included `tools` folder next to the executable.
+
+For a normal-mode device, unlock it and accept **Trust This Computer**. Connect one recovery or DFU device at a time.
+
+## Build and test
+
+The desktop app uses the C# compiler included with Windows .NET Framework and has no NuGet dependencies. The first build downloads checksum-pinned Icons8 symbols into the ignored `bin/icons` cache and embeds them in the executable.
 
 ```powershell
+git clone https://github.com/pxnami/Revora.git
+cd Revora
 ./scripts/build.ps1 -Test
 ```
 
-This creates `dist/Revora/Revora.exe`. For a complete distributable, install [MSYS2](https://www.msys2.org/), open its **MINGW64** shell, and install build dependencies:
+The build creates `dist/Revora/Revora.exe`. Automated checks cover parsing, firmware compatibility, restore targeting, argument safety, process behavior, monitoring transitions, destructive confirmation, and rendered WinForms layouts from 100% to 200% simulated scaling. These checks use synthetic fixtures and do not operate on a connected device.
+
+To run the separate read-only USB and interface check after building a native bundle:
+
+```powershell
+./bin/tests/Revora.UiSmoke.exe ./bin/tests ./dist/Revora/tools
+```
+
+This check scans connected devices and captures local screenshots. It does not change device mode or install firmware. Follow the [device validation checklist](docs/DEVICE-VALIDATION.md) before recommending a release for real-device use.
+
+### Native toolchain
+
+The complete distributable also requires MSYS2. From an **MINGW64** shell:
 
 ```bash
 pacman -Syu
@@ -50,23 +116,38 @@ pacman -S --needed base-devel git mingw-w64-x86_64-gcc mingw-w64-x86_64-autotool
 bash scripts/build-native.sh
 ```
 
-The native script builds the revisions in `native/revisions.txt`, copies the required DLLs, includes upstream license files, and collects corresponding sources. It uses `/tmp/revora-native-build` and `/opt/revora-native` inside MSYS2. Native build dependencies come from the current MSYS2 registry; exact package versions are recorded in the bundle.
-
-Then in PowerShell:
+Then package the app from PowerShell:
 
 ```powershell
 ./scripts/build.ps1 -Test -NativeTools dist/Revora/tools -Package
 Compress-Archive -Path dist/native-sources/* -DestinationPath dist/Revora-native-sources.zip
 ```
 
-Distribute both the Windows package and native sources archive. GitHub Actions performs these steps on pushes and pull requests. Tags beginning with `v` create a GitHub prerelease with both archives and a checksum. Releases are unsigned; code signing requires your own Windows signing certificate.
+Native revisions are pinned in `native/revisions.txt`. GitHub Actions builds, tests, packages, verifies checksums, and publishes tagged builds as prereleases.
 
-## Validation
+## Project structure
 
-`scripts/build.ps1 -Test` checks device parsing, firmware compatibility, target selection, restore argument safety, mismatched device rejection, process quoting, stream handling, tool timeouts, and UI confirmation states. `-NativeTools` also checks bundled executable startup and binary IPSW manifest conversion from Windows. These tests use synthetic fixtures and do not touch connected devices. The native HTTP library uses Windows' certificate store through Schannel.
+```text
+.github/workflows/       Windows build, test, and prerelease workflow
+assets/                  Revora logo, app icon, and icon manifest
+docs/                    Screenshots and physical-device validation guide
+native/                  Pinned native dependency revisions
+scripts/                 Desktop and native build scripts
+src/Revora/              WinForms application source
+tests/                   Core, native, and rendered UI checks
+```
 
-Before recommending a release for real use, follow [the device validation checklist](docs/DEVICE-VALIDATION.md).
+## Data and privacy
 
-## License
+Revora runs locally and does not provide accounts, analytics, or cloud synchronization. Logs and extracted firmware cache are stored in `%LOCALAPPDATA%\Revora`. Logs may contain device identifiers, so review them before sharing. Firmware signing checks performed by the restore engine communicate with Apple.
 
-Revora's C# source is MIT licensed. Bundled native tools and dependencies retain their own licenses; see [THIRD-PARTY.md](THIRD-PARTY.md).
+## Limitations
+
+- Physical recovery, restore, and real monitor-DPI transitions still require device testing.
+- Exit recovery requests a reboot; an unresolved boot problem can return the device to recovery.
+- The current app and bundled tools are unsigned and may be blocked by Windows application-control policies.
+- Compatibility checks cannot override Apple's active firmware-signing rules.
+
+## License and attribution
+
+Revora's C# source is available under the [MIT License](LICENSE). Interface icons are from [Icons8 Apple SF Symbols](https://icons8.com/icons/family-sf-symbols). Bundled native tools and dependencies retain their upstream licenses; see [THIRD-PARTY.md](THIRD-PARTY.md).

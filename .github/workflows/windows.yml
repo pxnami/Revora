@@ -22,6 +22,13 @@ jobs:
       - name: Build and test desktop app
         shell: pwsh
         run: ./scripts/build.ps1 -Test
+      - name: Upload rendered UI checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Revora-ui-checks
+          path: bin/tests/*.png
+          retention-days: 7
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64

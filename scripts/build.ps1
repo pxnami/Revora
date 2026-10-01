@@ -1,30 +1,34 @@
-param([switch]$Test, [switch]$Package, [string]$NativeTools)
+param([switch]$Test, [switch]$Package, [string]$NativeTools, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (!(Test-Path -LiteralPath $compiler)) { throw 'The Windows .NET Framework C# compiler is required.' }
-$output = Join-Path $projectRoot 'dist\Revora'
+$output = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $projectRoot 'dist\Revora' }
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $sourceRoot = Join-Path $projectRoot 'src\Revora'
 $appIcon = Join-Path $projectRoot 'assets\revora.ico'
 $sources = @(Get-ChildItem -LiteralPath $sourceRoot -Filter '*.cs' | ForEach-Object FullName)
 $references = @('/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', '/r:System.Xml.dll', '/r:System.Xml.Linq.dll', '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll')
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /warnaserror+ "/out:$output\Revora.exe" "/win32manifest:$sourceRoot\app.manifest" "/win32icon:$appIcon" @references @sources
+& (Join-Path $PSScriptRoot 'fetch-icons.ps1')
+$resources = @('home', 'restart', 'download', 'clock', 'settings', 'copy') | ForEach-Object { '/resource:' + (Join-Path $projectRoot "bin\icons\$_.png") + ",Revora.Icons.$_.png" }
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /warn:4 /warnaserror+ "/out:$output\Revora.exe" "/win32manifest:$sourceRoot\app.manifest" "/win32icon:$appIcon" @references @resources @sources
 if ($LASTEXITCODE -ne 0) { throw 'Revora compilation failed.' }
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'Revora.exe.config') -Destination $output
+Copy-Item -LiteralPath (Join-Path $projectRoot 'bin\icons\Icons8-license.html') -Destination $output
 foreach ($document in @('README.md', 'LICENSE', 'THIRD-PARTY.md')) {
     if (Test-Path -LiteralPath (Join-Path $projectRoot $document)) { Copy-Item -LiteralPath (Join-Path $projectRoot $document) -Destination $output }
 }
 if ($Test) {
     $testOutput = Join-Path $projectRoot 'bin\tests'
     New-Item -ItemType Directory -Path $testOutput -Force | Out-Null
-    $core = @('Device.cs', 'DeviceService.cs', 'Firmware.cs', 'ToolRunner.cs') | ForEach-Object { Join-Path $sourceRoot $_ }
+    $core = @('Device.cs', 'DeviceService.cs', 'DeviceMonitor.cs', 'FirmwareFlow.cs', 'Firmware.cs', 'ToolRunner.cs') | ForEach-Object { Join-Path $sourceRoot $_ }
     & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ "/out:$testOutput\Revora.Tests.exe" @references @core (Join-Path $projectRoot 'tests\Tests.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed.' }
     & (Join-Path $testOutput 'Revora.Tests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Revora tests failed.' }
-    & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ /main:UiSmoke "/out:$testOutput\Revora.UiSmoke.exe" "/win32icon:$appIcon" @references @sources (Join-Path $projectRoot 'tests\UiSmoke.cs')
+    & $compiler /nologo /target:exe /platform:x64 /warn:4 /warnaserror+ /main:UiSmoke "/out:$testOutput\Revora.UiSmoke.exe" "/win32icon:$appIcon" @references @resources @sources (Join-Path $projectRoot 'tests\UiSmoke.cs')
     if ($LASTEXITCODE -ne 0) { throw 'UI smoke test compilation failed.' }
+    Copy-Item -LiteralPath (Join-Path $sourceRoot 'Revora.exe.config') -Destination (Join-Path $testOutput 'Revora.UiSmoke.exe.config')
     & (Join-Path $testOutput 'Revora.UiSmoke.exe') $testOutput
     if ($LASTEXITCODE -ne 0) { throw 'Revora UI smoke checks failed.' }
 }

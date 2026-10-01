@@ -1,139 +1,146 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Revora
 {
     public sealed partial class MainForm
     {
-        private Button details;
-        private Button firmwareStart;
+        private Panel pageHost;
+        private Label pageTitle;
+        private Label footer;
+        private RevoraButton switchDevice;
 
-        private Control CreateHome()
+        private Control CreateShell()
         {
-            var root = Stack(new Padding(28, 20, 28, 20));
-            root.Dock = DockStyle.None;
-            root.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-            var header = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 0, 0, 20) };
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+            var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = new Padding(0) };
+            shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
+            shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var sidebar = new TableLayoutPanel { Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, BackColor = Theme.Sidebar, Padding = new Padding(16, 24, 16, 20), ColumnCount = 1, RowCount = 8, Margin = new Padding(0) };
+            sidebar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+            for (int i = 0; i < 4; i++) sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            sidebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+            var brand = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = new Padding(0), WrapContents = false };
+            brand.Controls.Add(new BrandArtwork { Size = new Size(30, 30), BackColor = Theme.Sidebar, ForeColor = Theme.Ink, Margin = new Padding(0, 2, 8, 0) });
+            brand.Controls.Add(new Label { Text = "revora", Font = Theme.Font(20F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) });
+            sidebar.Controls.Add(brand, 0, 0);
+            string[] names = { "Home", "Recovery", "Firmware", "Activity", "Settings" };
+            string[] icons = { "home", "restart", "download", "clock", "settings" };
+            for (int i = 0; i < names.Length; i++) {
+                string name = names[i];
+                var button = new RevoraButton(name, ButtonKind.Navigation, icons[i]) { Dock = DockStyle.Fill, Height = 40, Margin = new Padding(0, 2, 0, 2) };
+                button.Click += (s, e) => ShowPage(name);
+                navigation.Add(name, button);
+                sidebar.Controls.Add(button, 0, i == 4 ? 6 : i + 1);
+            }
+            sidebar.Controls.Add(new Label { Text = Application.ProductVersion, AutoSize = true, ForeColor = Theme.Muted, Font = Theme.Font(9F), Margin = new Padding(12, 8, 0, 0) }, 0, 7);
+            var sidebarViewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Sidebar, Margin = new Padding(0) };
+            sidebarViewport.Controls.Add(sidebar);
+            bool fittingSidebar = false;
+            Action fitSidebar = () => {
+                if (fittingSidebar) return;
+                fittingSidebar = true;
+                try {
+                    int minimum = (int)Math.Ceiling(sidebar.RowStyles.Cast<RowStyle>().Where(row => row.SizeType == SizeType.Absolute).Sum(row => row.Height)) + sidebar.Padding.Vertical;
+                    int width = sidebarViewport.ClientSize.Width - (minimum > sidebarViewport.ClientSize.Height ? SystemInformation.VerticalScrollBarWidth : 0);
+                    sidebar.Size = new Size(Math.Max(0, width), Math.Max(minimum, sidebarViewport.ClientSize.Height));
+                } finally { fittingSidebar = false; }
+            };
+            sidebarViewport.SizeChanged += (s, e) => fitSidebar();
+            sidebar.Layout += (s, e) => fitSidebar();
+            shell.Controls.Add(sidebarViewport, 0, 0);
+            var content = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0) };
+            content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(32, 20, 32, 8), Margin = new Padding(0) };
+            header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            header.Controls.Add(new BrandArtwork { Size = new Size(40, 40), LogoOnly = true }, 0, 0);
-            header.Controls.Add(new Label { Text = "revora", Font = new Font("Segoe UI", 22F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) }, 1, 0);
-            header.Controls.Add(setup, 2, 0);
-            root.Controls.Add(header);
-
-            var hero = new TableLayoutPanel { Dock = DockStyle.Top, Height = 210, BackColor = Color.Black, ForeColor = Color.White, ColumnCount = 2, Padding = new Padding(26), Margin = new Padding(0, 0, 0, 20) };
-            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-            hero.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-            var intro = Stack(new Padding(0));
-            intro.Controls.Add(new Label { Text = "A fresh start for your device.", Font = new Font("Segoe UI", 23F, FontStyle.Bold), AutoSize = true, MaximumSize = new Size(560, 0), Margin = new Padding(0, 0, 0, 14) });
-            intro.Controls.Add(new Label { Text = "Recovery mode and firmware installs for iPhone and iPad.\nConnect by USB, unlock your device, and let’s begin.", AutoSize = true, MaximumSize = new Size(540, 0), ForeColor = Color.FromArgb(200, 200, 200), Margin = new Padding(0, 0, 0, 20) });
-            firmwareStart = MakeButton("Choose firmware  →", false);
-            firmwareStart.Click += async (s, e) => await ChooseFirmwareAsync();
-            intro.Controls.Add(firmwareStart);
-            hero.Controls.Add(intro, 0, 0);
-            hero.Controls.Add(new BrandArtwork { Dock = DockStyle.Fill, ForeColor = Color.White, BackColor = Color.Black }, 1, 0);
-            root.Controls.Add(hero);
-
-            var connected = Stack(new Padding(0));
-            var deviceRow = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 3, Margin = new Padding(0) };
-            deviceRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 138));
-            deviceRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            deviceRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            deviceRow.Controls.Add(new Label { Text = "Connected device", AutoSize = true, Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 8, 0, 0) }, 0, 0);
-            deviceRow.Controls.Add(devices, 1, 0);
-            deviceRow.Controls.Add(refresh, 2, 0);
-            connected.Controls.Add(deviceRow);
-            connected.Controls.Add(deviceInfo);
-            root.Controls.Add(connected);
-
-            var tools = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 0, 0, 16) };
-            tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-            tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-            tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-            var recovery = Tile("Recovery mode", "Enter recovery to prepare an install. Exit recovery to request a normal restart.");
-            recovery.Controls.Add(enter);
-            exit.Margin = new Padding(0, 10, 0, 0);
-            recovery.Controls.Add(exit);
-            recovery.Controls.Add(Note("DFU devices need a manual force restart to exit.", 16));
-            tools.Controls.Add(recovery, 0, 0);
-
-            var install = Tile("Firmware restore", "Choose a compatible IPSW. Apple checks firmware signing during the install.");
-            install.Controls.Add(chooseFirmware);
-            install.Controls.Add(firmwareInfo);
-            erase.MaximumSize = new Size(280, 0);
-            install.Controls.Add(erase);
-            install.Controls.Add(restore);
-            install.Controls.Add(Note("Back up first. Update attempts to preserve data; erase deletes it.", 12));
-            tools.Controls.Add(install, 1, 0);
-
-            var information = Tile("Device information", "View the model, serial number, iOS version, and identifiers reported over USB.");
-            details = MakeButton("View details", false);
-            details.Click += (s, e) => { if (SelectedDevice != null) using (var dialog = new DeviceDetails(SelectedDevice)) dialog.ShowDialog(this); };
-            information.Controls.Add(details);
-            tools.Controls.Add(information, 2, 0);
-            root.Controls.Add(tools);
-
-            var activity = MakeButton("Show activity", false);
-            activity.Click += (s, e) => log.Visible = !log.Visible;
-            log.VisibleChanged += (s, e) => activity.Text = log.Visible ? "Hide activity" : "Show activity";
-            root.Controls.Add(activity);
-            log.Height = 108;
-            log.Dock = DockStyle.Top;
-            log.Font = new Font("Consolas", 9F);
-            log.Visible = false;
-            root.Controls.Add(log);
-            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-            scroll.Controls.Add(root);
-            scroll.SizeChanged += (s, e) => {
-                int contentWidth = Math.Max(200, scroll.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
-                root.MinimumSize = Size.Empty;
-                root.MaximumSize = new Size(contentWidth, 0);
-                root.MinimumSize = new Size(contentWidth, 0);
-                hero.Height = scroll.Width < 1000 ? 260 : 210;
-                foreach (Control child in intro.Controls) {
-                    if (child is Label) child.MaximumSize = new Size(Math.Max(200, (int)((scroll.ClientSize.Width - 110) * .58) - 20), 0);
+            pageTitle = new Label { Font = Theme.Font(19F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0) };
+            switchDevice = new RevoraButton("Switch device", ButtonKind.Quiet) { Height = 32 };
+            switchDevice.Click += (s, e) => {
+                using (var picker = new DeviceChooser(monitor.Snapshot.Devices)) {
+                    if (picker.ShowDialog(this) == DialogResult.OK) monitor.Select(picker.SelectedIdentity);
                 }
             };
-            root.SizeChanged += (s, e) => deviceInfo.MaximumSize = new Size(Math.Max(200, root.Width - 70), 0);
-            var frame = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = new Padding(0) };
-            frame.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            frame.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            frame.Controls.Add(scroll, 0, 0);
-            var footer = Stack(new Padding(28, 0, 28, 14));
-            footer.Controls.Add(status);
-            progress.Height = 6;
-            footer.Controls.Add(progress);
-            frame.Controls.Add(footer, 0, 1);
-            return frame;
+            header.Controls.Add(pageTitle, 0, 0);
+            header.Controls.Add(switchDevice, 1, 0);
+            content.Controls.Add(header, 0, 0);
+            pageHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(32, 8, 32, 8), Margin = new Padding(0) };
+            pages.Add("Home", CreateHome());
+            pages.Add("Recovery", CreateRecovery());
+            pages.Add("Firmware", CreateFirmware());
+            pages.Add("Activity", CreateActivity());
+            pages.Add("Settings", CreateSettings());
+            foreach (var page in pages.Values) { page.Dock = DockStyle.Fill; page.Visible = false; pageHost.Controls.Add(page); }
+            content.Controls.Add(pageHost, 0, 1);
+            footer = new Label { Dock = DockStyle.Fill, ForeColor = Theme.Muted, Font = Theme.Font(9F), Padding = new Padding(32, 8, 0, 0), Margin = new Padding(0), AccessibleName = "Device and operation status" };
+            content.Controls.Add(footer, 0, 2);
+            shell.Controls.Add(content, 1, 0);
+            return shell;
         }
 
-        private static TableLayoutPanel Stack(Padding padding)
+        private void ShowPage(string name)
         {
-            var stack = new TableLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, ColumnCount = 1, Padding = padding, Margin = new Padding(0) };
+            if (!pages.ContainsKey(name)) throw new ArgumentException("Unknown page.", "name");
+            foreach (var page in pages) page.Value.Visible = page.Key == name;
+            foreach (var item in navigation) item.Value.Selected = item.Key == name;
+            pageTitle.Text = name == "Recovery" ? "Recovery Mode" : name;
+            pages[name].BringToFront();
+            if (name == "Activity") RenderActivity();
+            RenderState();
+        }
+
+        private void RenderFooter()
+        {
+            if (footer == null) return;
+            if (operation.Running) footer.Text = operation.Stage + (operation.Progress.HasValue ? " · " + operation.Progress + "% of this stage" : "…");
+            else if (monitor.Snapshot.Connection == ConnectionState.Connected) footer.Text = SelectedDevice.Name + " · " + SelectedDevice.ModeLabel;
+            else if (monitor.Snapshot.Connection == ConnectionState.Error) footer.Text = "Device detection needs attention · see Activity";
+            else footer.Text = monitor.Snapshot.Connection == ConnectionState.Initializing || monitor.Snapshot.Connection == ConnectionState.Scanning ? "Checking for devices…" : "Waiting for a device";
+        }
+
+        private static TableLayoutPanel Stack()
+        {
+            var stack = new TableLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, Margin = new Padding(0) };
             stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            stack.ControlAdded += (s, e) => {
+                stack.RowCount = stack.Controls.Count;
+                while (stack.RowStyles.Count < stack.RowCount) stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                stack.SetCellPosition(e.Control, new TableLayoutPanelCellPosition(0, stack.Controls.Count - 1));
+            };
             return stack;
         }
 
-        private static TableLayoutPanel Tile(string title, string description)
+        private static Control ScrollPage(TableLayoutPanel body)
         {
-            var tile = Stack(new Padding(18));
-            tile.BackColor = Color.FromArgb(245, 245, 245);
-            tile.Margin = new Padding(0, 0, 10, 10);
-            tile.Controls.Add(new Label { Text = title, AutoSize = true, Font = new Font("Segoe UI", 14F, FontStyle.Bold), Margin = new Padding(0, 0, 0, 8) });
-            tile.Controls.Add(Note(description, 0));
-            tile.SizeChanged += (s, e) => {
-                foreach (Control child in tile.Controls) {
-                    if (child is Label) child.MaximumSize = new Size(Math.Max(120, tile.Width - 42), 0);
-                }
+            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Margin = new Padding(0) };
+            body.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            scroll.Controls.Add(body);
+            scroll.SizeChanged += (s, e) => {
+                int width = Math.Max(200, scroll.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
+                body.MinimumSize = Size.Empty;
+                body.MaximumSize = new Size(width, 0);
+                body.MinimumSize = new Size(width, 0);
+                foreach (var label in body.Controls.OfType<Label>()) label.MaximumSize = new Size(width, 0);
             };
-            return tile;
+            return scroll;
         }
 
-        private static Label Note(string text, int top)
+        private static Label Heading(string text) { return new Label { Text = text, Font = Theme.Font(22F, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, 12) }; }
+        private static Label Body(string text, int bottom = 24) { return new Label { Text = text, Font = Theme.Font(10F), AutoSize = true, ForeColor = Theme.Muted, MaximumSize = new Size(620, 0), Margin = new Padding(0, 0, 0, bottom) }; }
+        private static FlowLayoutPanel Actions(params Control[] buttons)
         {
-            return new Label { Text = text, AutoSize = true, MaximumSize = new Size(280, 0), ForeColor = Muted, Margin = new Padding(0, top, 0, 16) };
+            var row = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, 8, 0, 16), WrapContents = true };
+            row.Controls.AddRange(buttons);
+            return row;
         }
     }
 }

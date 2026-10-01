@@ -1,0 +1,13 @@
+{
+  "family": "Apple SF Regular",
+  "attribution": "https://icons8.com",
+  "license": "https://intercom.help/icons8-7fb7577e8170/en/articles/5534926-universal-multimedia-license-agreement-for-icons8",
+  "icons": [
+    { "name": "home", "sha256": "315119da1008c4bad20af1dc56804329597bdb528e7d2cf4095927a95f015b5a" },
+    { "name": "restart", "sha256": "cd8a6845f45d96bddfef737ee40bb403d3df0944c8198c1f6bf6f08c4c40cff9" },
+    { "name": "download", "sha256": "9a9a5048c7ec6ceffb00eca31eb04e9cddcb2b9dc8780f383e56bf30c65f99b9" },
+    { "name": "clock", "sha256": "a59ccf5ad1d42797ebeec98aa5763170db35bd5b59ef64859cac87f830214925" },
+    { "name": "settings", "sha256": "7a50f5264fa25a14fde3ab678e484a6fc57897eab75eeef4b1254034d6daf4a3" },
+    { "name": "copy", "sha256": "1b547956bc03643b90dfd2bd96fd24921828e142a49506c191364d4c40dce61b" }
+  ]
+}

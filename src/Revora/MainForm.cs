@@ -1,10 +1,8 @@
 using System;
-using System.ComponentModel;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -13,247 +11,184 @@ namespace Revora
 {
     public sealed partial class MainForm : Form
     {
-        private static readonly Color Ink = Color.FromArgb(22, 22, 22);
-        private static readonly Color Muted = Color.FromArgb(105, 105, 105);
-        private static readonly Color Accent = Color.Black;
         private readonly string dataPath;
-        private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
-        private readonly Label deviceInfo = new Label { AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 12, 0, 16) };
-        private readonly Label firmwareInfo = new Label { AutoSize = true, Text = "No firmware selected", ForeColor = Muted, Margin = new Padding(0, 10, 0, 10) };
-        private readonly Label status = new Label { AutoSize = true, ForeColor = Accent, Text = "Ready", Margin = new Padding(0, 8, 0, 6) };
-        private readonly TextBox log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, BackColor = Color.FromArgb(246, 246, 246), BorderStyle = BorderStyle.FixedSingle };
-        private readonly CheckBox erase = new CheckBox { AutoSize = true, Text = "Erase restore — delete all device data", Margin = new Padding(0, 12, 0, 12) };
-        private readonly ProgressBar progress = new ProgressBar { Dock = DockStyle.Fill, Height = 8, Style = ProgressBarStyle.Continuous };
-        private readonly Timer scanTimer = new Timer { Interval = 10000 };
-        private readonly Button refresh, enter, exit, chooseFirmware, restore, setup;
+        private readonly DeviceMonitor monitor;
+        private readonly Dictionary<string, Control> pages = new Dictionary<string, Control>();
+        private readonly Dictionary<string, RevoraButton> navigation = new Dictionary<string, RevoraButton>();
+        private readonly FirmwareFlow firmwareFlow = new FirmwareFlow();
+        private readonly OperationStatus operation = new OperationStatus();
+        private readonly List<ActivityEntry> activity = new List<ActivityEntry>();
+        private readonly TextBox technicalLog = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, BackColor = Theme.Surface, Font = new Font("Consolas", 9F) };
         private ToolRunner runner;
         private DeviceService service;
-        private Firmware firmware;
-        private bool busy;
-        private bool restoring;
-        private string sessionLog;
         private StreamWriter logWriter;
-        private Device SelectedDevice { get { return devices.SelectedItem as Device; } }
+        private DeviceSnapshot previousSnapshot;
+        private readonly bool startMonitoring;
+        private Device SelectedDevice { get { return monitor.Snapshot.CurrentDevice; } }
+        private bool DeviceReady { get { return SelectedDevice != null && monitor.Snapshot.Connection == ConnectionState.Connected; } }
 
-        public MainForm() : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Revora")) { }
-
-        internal MainForm(string dataPath)
+        public MainForm() : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Revora"), null, true) { }
+        internal MainForm(string dataPath, Func<Task<Discovery>> discovery, bool startMonitoring)
         {
+            SuspendLayout();
             this.dataPath = dataPath;
+            this.startMonitoring = startMonitoring;
             Text = "Revora";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-            Font = new Font("Segoe UI", 10F);
-            ForeColor = Ink;
-            BackColor = Color.White;
+            Font = Theme.Font(10F);
+            ForeColor = Theme.Ink;
+            BackColor = Theme.Background;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            MinimumSize = new Size(900, 760);
-            Size = new Size(1160, 900);
+            MinimumSize = new Size(900, 680);
+            Size = new Size(1080, 780);
             StartPosition = FormStartPosition.CenterScreen;
-            Directory.CreateDirectory(dataPath);
             Directory.CreateDirectory(Path.Combine(dataPath, "Logs"));
-            sessionLog = Path.Combine(dataPath, "Logs", "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
-            logWriter = new StreamWriter(sessionLog, false) { AutoFlush = true };
+            string session = Path.Combine(dataPath, "Logs", "session-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
+            logWriter = new StreamWriter(session, false) { AutoFlush = true };
             runner = new ToolRunner(ReadToolsPath(), Path.Combine(dataPath, "Cache"));
             service = new DeviceService(runner);
-
-            refresh = MakeButton("Refresh devices", false);
-            enter = MakeButton("Enter recovery", false);
-            exit = MakeButton("Exit recovery", false);
-            chooseFirmware = MakeButton("Choose IPSW…", false);
-            restore = MakeButton("Install firmware", true);
-            setup = MakeButton("Setup", false);
-
-            Controls.Add(CreateHome());
-
-            refresh.Click += async (s, e) => await ScanAsync(false);
-            enter.Click += async (s, e) => await RecoveryAsync(true);
-            exit.Click += async (s, e) => await RecoveryAsync(false);
-            chooseFirmware.Click += async (s, e) => await ChooseFirmwareAsync();
-            restore.Click += async (s, e) => await RestoreAsync();
-            setup.Click += (s, e) => ShowSetup();
-            devices.SelectedIndexChanged += (s, e) => UpdateControls();
-            erase.CheckedChanged += (s, e) => UpdateControls();
-            scanTimer.Tick += async (s, e) => { if (!busy) await ScanAsync(true); };
+            monitor = new DeviceMonitor(discovery ?? DiscoverAsync);
+            monitor.Changed += DeviceChanged;
+            previousSnapshot = monitor.Snapshot;
+            Controls.Add(CreateShell());
+            LogTechnical("Revora " + Application.ProductVersion + " · " + session);
             Shown += async (s, e) => {
-                Log("Revora " + Application.ProductVersion + " · session log: " + sessionLog);
-                UpdateControls();
-                if (runner.MissingTools().Length > 0) {
-                    status.Text = "Device tools need setup";
-                    Log("Missing device tools: " + string.Join(", ", runner.MissingTools()) + ". Open Setup to select a tools folder.");
-                    deviceInfo.Text = "Connect your device by USB, then complete Setup.";
-                }
-                else { await ScanAsync(false); scanTimer.Start(); }
+                RenderState();
+                if (this.startMonitoring) { monitor.Start(); await monitor.RefreshAsync(); }
             };
             FormClosing += (s, e) => {
-                if (busy) {
-                    e.Cancel = true;
-                    MessageBox.Show(this, restoring ? "A firmware install is running. Keep Revora open and your device connected until it finishes." : "Wait for the current operation to finish before closing Revora.", "Operation in progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                if (!operation.Running) return;
+                e.Cancel = true;
+                using (var dialog = new NoticeDialog("Operation in progress", "Keep Revora open and your device connected until the current operation finishes.", null)) dialog.ShowDialog(this);
             };
-            UpdateControls();
+            ShowPage("Home");
+            ResumeLayout(true);
         }
 
-        protected override void Dispose(bool disposing)
+        private Task<Discovery> DiscoverAsync()
         {
-            if (disposing) {
-                scanTimer.Dispose();
-                if (logWriter != null) { logWriter.Dispose(); logWriter = null; }
-            }
-            base.Dispose(disposing);
+            var missing = runner.MissingTools();
+            if (missing.Length > 0) throw new FileNotFoundException("Device tools need setup. Open Settings to select the tools folder. Missing: " + string.Join(", ", missing));
+            return service.DiscoverAsync();
         }
 
-        private async Task ScanAsync(bool automatic)
-        {
-            if (busy || runner.MissingTools().Length > 0) return;
-            string selected = SelectedDevice == null ? null : SelectedDevice.Identity;
-            string previous = string.Join("|", devices.Items.Cast<Device>().Select(d => d.Identity + ":" + d.Mode));
-            await OperateAsync("Checking USB devices…", async () => {
-                var found = await service.DiscoverAsync();
-                devices.Items.Clear();
-                foreach (var device in found.Devices) devices.Items.Add(device);
-                devices.SelectedIndex = found.Devices.FindIndex(d => d.Identity == selected);
-                if (devices.SelectedIndex < 0 && devices.Items.Count > 0) devices.SelectedIndex = 0;
-                string next = string.Join("|", found.Devices.Select(d => d.Identity + ":" + d.Mode));
-                if (!automatic || previous != next) {
-                    Log(found.Devices.Count == 0 ? "No device found. Unlock it, accept Trust This Computer, and check Apple device drivers." : "Found " + found.Devices.Count + " device(s).");
-                }
-                foreach (string issue in found.Issues) if (!automatic || previous != next) Log(issue);
-                status.Text = found.Issues.Count > 0 ? "Detection needs attention — see Activity" : found.Devices.Count == 0 ? "Waiting for a USB device" : "Device ready";
-            }, !automatic);
-        }
-
-        private async Task RecoveryAsync(bool entering)
-        {
-            var device = SelectedDevice;
-            if (device == null) return;
-            if (entering && MessageBox.Show(this, "Put " + device.Name + " into recovery mode? The device will stop normal operation until you exit recovery or reinstall firmware.", "Enter recovery", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
-            await OperateAsync(entering ? "Entering recovery mode…" : "Exiting recovery mode…", async () => {
-                if (entering) await service.EnterRecoveryAsync(device, Log); else await service.ExitRecoveryAsync(device, Log);
-                status.Text = "Recovery command completed — refresh to check device mode";
-                Log(status.Text);
-            }, true);
-            await ScanAsync(false);
-        }
-
-        private async Task ChooseFirmwareAsync()
-        {
-            using (var picker = new OpenFileDialog { Filter = "Apple firmware (*.ipsw)|*.ipsw", Title = "Choose firmware for your iPhone or iPad" }) {
-                if (picker.ShowDialog(this) != DialogResult.OK) return;
-                firmware = null;
-                firmwareInfo.Text = "Reading firmware…";
-                await OperateAsync("Reading firmware manifest…", async () => {
-                    firmware = await Firmware.ReadAsync(picker.FileName, runner);
-                    firmwareInfo.Text = "iOS / iPadOS " + firmware.Version + " · " + firmware.Build + "\n" + Path.GetFileName(firmware.Path);
-                    status.Text = "Firmware selected";
-                    Log("Selected firmware " + firmware.Version + " (" + firmware.Build + ").");
-                }, true);
-                if (firmware == null) firmwareInfo.Text = "No valid firmware selected";
-            }
-        }
-
-        private async Task RestoreAsync()
-        {
-            var device = SelectedDevice;
-            if (device == null || firmware == null) return;
-            bool eraseData = erase.Checked;
-            try { firmware.Validate(device, eraseData); }
-            catch (InvalidOperationException e) { MessageBox.Show(this, e.Message, "Firmware incompatible", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            using (var confirmation = new RestoreConfirmation(device, firmware, eraseData)) {
-                if (confirmation.ShowDialog(this) != DialogResult.OK) return;
-            }
-            restoring = true;
-            try { await OperateAsync("Installing firmware — keep the device connected…", async () => {
-                Log("Starting " + (eraseData ? "ERASE" : "update") + " install on " + device.Product + ", ECID " + device.EcidArgument + ".");
-                await service.RestoreAsync(device, firmware, eraseData, Path.Combine(dataPath, "Cache"), Log);
-                progress.Style = ProgressBarStyle.Continuous;
-                progress.Value = 100;
-                status.Text = "Firmware tool reported success — verify the device finishes booting";
-                Log(status.Text);
-                MessageBox.Show(this, "The firmware tool reported a successful install. Keep the device connected while it finishes booting, then verify it on the device.", "Install completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }, true); }
-            finally { restoring = false; }
-            await ScanAsync(false);
-        }
-
-        private async Task OperateAsync(string description, Func<Task> operation, bool showError)
-        {
-            if (busy) return;
-            busy = true;
-            status.Text = description;
-            progress.Style = ProgressBarStyle.Marquee;
-            UpdateControls();
-            try { await operation(); }
-            catch (Exception e) {
-                if (!(e is InvalidOperationException || e is IOException || e is TimeoutException || e is Win32Exception || e is System.Xml.XmlException)) throw;
-                status.Text = "Operation failed — see Activity";
-                log.Visible = true;
-                Log(e.Message);
-                if (showError) MessageBox.Show(this, e.Message.Length > 1800 ? e.Message.Substring(0, 1800) + "\nSee Activity for more." : e.Message, "Revora", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally { busy = false; if (progress.Style == ProgressBarStyle.Marquee) { progress.Style = ProgressBarStyle.Continuous; progress.Value = 0; } UpdateControls(); }
-        }
-
-        private void UpdateControls()
-        {
-            bool ready = !busy && runner.MissingTools().Length == 0;
-            var device = SelectedDevice;
-            devices.Enabled = ready;
-            refresh.Enabled = ready;
-            setup.Enabled = !busy;
-            chooseFirmware.Enabled = !busy;
-            firmwareStart.Enabled = !busy;
-            details.Enabled = !busy && device != null;
-            erase.Enabled = !busy;
-            enter.Enabled = ready && device != null && device.Mode == DeviceMode.Normal;
-            exit.Enabled = ready && device != null && device.Mode == DeviceMode.Recovery && device.Ecid != 0;
-            restore.Enabled = ready && device != null && device.Ecid != 0 && firmware != null;
-            deviceInfo.Text = device == null ? "Connect an iPhone or iPad by USB. Unlock it and accept Trust This Computer.\nConnect one recovery / DFU device at a time." :
-                "Mode: " + device.Mode + "    iOS / iPadOS: " + device.Version + "\nModel: " + device.Product + "    Hardware: " + device.Board + "    ECID: " + device.EcidArgument;
-        }
-
-        private void Log(string line)
+        private void DeviceChanged(object sender, EventArgs e)
         {
             if (IsDisposed || Disposing) return;
-            if (InvokeRequired) { BeginInvoke(new Action<string>(Log), line); return; }
-            string clean = Regex.Replace(line, "\u001b\\[[0-9;]*[A-Za-z]", "");
-            string entry = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + clean + Environment.NewLine;
-            if (logWriter != null) {
-                try { logWriter.Write(entry); }
-                catch (IOException) {
-                    logWriter.Dispose();
-                    logWriter = null;
-                    log.AppendText("Could not write the session log. Activity remains visible here.\r\n");
-                }
+            var snapshot = monitor.Snapshot;
+            var oldDevice = previousSnapshot.CurrentDevice;
+            var device = snapshot.CurrentDevice;
+            if (snapshot.Connection == ConnectionState.Connected) {
+                if (oldDevice == null || previousSnapshot.Connection != ConnectionState.Connected || oldDevice.Identity != device.Identity)
+                    Record("Device connected", device.Name + " · " + device.Product);
+                else if (oldDevice.Mode != device.Mode) Record(device.ModeLabel, device.Name);
             }
-            if (log.TextLength > 100000) log.Text = log.Text.Substring(log.TextLength - 60000);
-            log.AppendText(entry);
-            var match = Regex.Match(clean, @"^progress:\s+(\d+)\s+([0-9.]+)");
-            double amount;
-            if (restoring && match.Success && double.TryParse(match.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out amount)) {
-                progress.Style = ProgressBarStyle.Continuous;
-                progress.Value = (int)Math.Max(0, Math.Min(100, amount * 100));
-                status.Text = "Firmware stage " + match.Groups[1].Value + ": " + progress.Value + "% — keep connected";
+            else if (snapshot.Connection == ConnectionState.Disconnected && oldDevice != null) Record("Device disconnected", oldDevice.Name);
+            if (snapshot.Error.Length > 0 && snapshot.Error != previousSnapshot.Error) {
+                Record("Device detection needs attention", "Check the USB connection and device tools in Settings.");
+                LogTechnical(snapshot.Error);
+            }
+            firmwareFlow.ObserveDevice(device, snapshot.Connection == ConnectionState.Connected);
+            previousSnapshot = snapshot;
+            RenderState();
+        }
+
+        private void RenderState()
+        {
+            if (IsDisposed || Disposing) return;
+            RenderHome();
+            RenderRecovery();
+            RenderFirmware();
+            RenderSettings();
+            RenderFooter();
+            switchDevice.Visible = monitor.Snapshot.Devices.Count > 1;
+            switchDevice.Enabled = !operation.Running;
+        }
+
+        private async Task RunOperationAsync(OperationKind kind, string title, Func<Task> action)
+        {
+            if (operation.Running) return;
+            operation.Begin(kind, title);
+            Record(title, SelectedDevice == null ? "" : SelectedDevice.Name);
+            RenderState();
+            await monitor.SuspendAsync();
+            try {
+                await action();
+                operation.Finish();
+                Record(title + " completed", "");
+            }
+            catch (Exception e) {
+                if (!ToolRunner.IsExpectedFailure(e)) throw;
+                operation.Fail(e.Message, FailureExplanation(e));
+                Record(title + " failed", FailureExplanation(e));
+                LogTechnical(e.Message);
+                if (kind != OperationKind.InstallingFirmware)
+                    using (var dialog = new NoticeDialog(title + " couldn’t complete", FailureExplanation(e), e.Message)) dialog.ShowDialog(this);
+            }
+            finally {
+                monitor.Resume();
+                RenderState();
             }
         }
 
-        private void ShowSetup()
+        private async Task RecoveryAsync()
         {
-            using (var dialog = new SetupForm(runner.DirectoryPath, dataPath)) {
-                if (dialog.ShowDialog(this) != DialogResult.OK) return;
-                ToolRunner candidate;
-                try { candidate = new ToolRunner(dialog.ToolsPath, Path.Combine(dataPath, "Cache")); }
-                catch (ArgumentException) { MessageBox.Show(this, "Choose a valid tools folder path.", "Invalid path", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                var missing = candidate.MissingTools();
-                if (missing.Length > 0) { MessageBox.Show(this, "This folder is missing: " + string.Join(", ", missing) + ".", "Incomplete tools folder", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                File.WriteAllText(Path.Combine(dataPath, "tools-path.txt"), candidate.DirectoryPath);
-                runner = candidate;
-                service = new DeviceService(runner);
-                devices.Items.Clear();
-                UpdateControls();
-                status.Text = "Tools configured — refresh to detect devices";
-                Log("Device tools configured: " + candidate.DirectoryPath);
-                scanTimer.Start();
+            var device = SelectedDevice;
+            if (!DeviceReady || operation.Running || device.Mode == DeviceMode.Dfu) return;
+            bool entering = device.Mode == DeviceMode.Normal;
+            if (entering) using (var confirmation = new ActionConfirmation("Enter Recovery Mode?", "Your device will leave normal operation and restart into Apple’s recovery environment.", "Enter Recovery Mode")) {
+                if (confirmation.ShowDialog(this) != DialogResult.OK) return;
             }
+            await RunOperationAsync(entering ? OperationKind.EnteringRecovery : OperationKind.ExitingRecovery,
+                entering ? "Entering Recovery Mode" : "Exiting Recovery Mode", async () => {
+                    if (!DeviceReady || SelectedDevice.Identity != device.Identity || SelectedDevice.Mode != device.Mode)
+                        throw new InvalidOperationException("The device changed while the last scan was finishing. Check its current mode and try again.");
+                    if (entering) await service.EnterRecoveryAsync(device, LogTechnical);
+                    else await service.ExitRecoveryAsync(device, LogTechnical);
+                });
+            await monitor.RefreshAsync();
+        }
+
+        private void Record(string title, string detail)
+        {
+            activity.Add(new ActivityEntry(DateTime.Now, title, detail));
+            if (activity.Count > 200) activity.RemoveAt(0);
+            LogTechnical(title + (string.IsNullOrEmpty(detail) ? "" : ": " + detail));
+            RenderActivity();
+        }
+
+        private void LogTechnical(string line)
+        {
+            if (IsDisposed || Disposing) return;
+            if (InvokeRequired) { BeginInvoke(new Action<string>(LogTechnical), line); return; }
+            string clean = Regex.Replace(line, "\u001b\\[[0-9;]*[A-Za-z]", "");
+            string entry = "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + clean + Environment.NewLine;
+            if (logWriter != null) try { logWriter.Write(entry); }
+            catch (IOException) { logWriter.Dispose(); logWriter = null; entry += "The log file could not be written. Details remain available in this session.\n"; }
+            if (technicalLog.TextLength > 100000) technicalLog.Text = technicalLog.Text.Substring(technicalLog.TextLength - 60000);
+            technicalLog.AppendText(entry);
+            var match = Regex.Match(clean, @"^progress:\s+(\d+)\s+([0-9.]+)");
+            double amount;
+            if (operation.Kind == OperationKind.InstallingFirmware && operation.Running && match.Success
+                && double.TryParse(match.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out amount)) {
+                operation.Progress = (int)Math.Max(0, Math.Min(100, amount * 100));
+                int stage;
+                if (!int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out stage)) return;
+                string[] stages = { "Detecting device", "Preparing device", "Uploading file system", "Verifying file system", "Installing firmware", "Installing baseband", "Updating device components", "Uploading image" };
+                operation.Stage = stage < stages.Length ? stages[stage] : "Firmware stage " + stage;
+                RenderFirmwareProgress();
+                RenderFooter();
+                RenderActivityOperation();
+            }
+        }
+
+        private static string FailureExplanation(Exception error)
+        {
+            if (error is System.ComponentModel.Win32Exception) return "Windows couldn’t start a device tool. Check its application-control policy and open Details for the affected file.";
+            if (error is TimeoutException) return "The device didn’t respond. Check the cable, unlock the device if possible, and try again.";
+            if (error is IOException) return "Revora couldn’t read the required file. Check that it is accessible and choose it again.";
+            return "Check the device connection and the selected firmware. Details contain the message returned by the device tools.";
         }
 
         private string ReadToolsPath()
@@ -262,12 +197,19 @@ namespace Revora
             return File.Exists(settings) ? File.ReadAllText(settings).Trim() : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools");
         }
 
-        internal static Button MakeButton(string title, bool primary)
+        internal DeviceMonitor Monitor { get { return monitor; } }
+        internal FirmwareFlow Flow { get { return firmwareFlow; } }
+        internal OperationStatus Operation { get { return operation; } }
+        internal void Navigate(string page) { ShowPage(page); }
+
+        protected override void Dispose(bool disposing)
         {
-            var button = new Button { Text = title, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 7, 14, 7), FlatStyle = FlatStyle.Flat, BackColor = primary ? Accent : Color.White, ForeColor = primary ? Color.White : Ink, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 10, 0), UseVisualStyleBackColor = false };
-            button.FlatAppearance.BorderColor = primary ? Accent : Color.FromArgb(205, 205, 205);
-            if (primary) button.EnabledChanged += (s, e) => button.BackColor = button.Enabled ? Accent : Color.FromArgb(235, 235, 235);
-            return button;
+            if (disposing) {
+                monitor.Changed -= DeviceChanged;
+                monitor.Dispose();
+                if (logWriter != null) { logWriter.Dispose(); logWriter = null; }
+            }
+            base.Dispose(disposing);
         }
     }
 }
